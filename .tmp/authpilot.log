@@ -1,0 +1,3 @@
+{"time":"2026-03-12T15:38:44.085898Z","level":"INFO","msg":"authpilot starting","http_addr":":18025","protocol_addr":":18026","persistence_enabled":false,"sqlite_path":"./data/authpilot.db"}
+{"time":"2026-03-12T15:38:44.08626Z","level":"INFO","msg":"http server listening","addr":":18025"}
+{"time":"2026-03-12T15:38:44.81991Z","level":"INFO","msg":"shutdown signal received"}

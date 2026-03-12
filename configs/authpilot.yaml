@@ -1,0 +1,12 @@
+http_addr: ":8025"
+protocol_addr: ":8026"
+log_level: "info"
+
+persistence:
+  enabled: false
+  sqlite_path: "./data/authpilot.db"
+
+cleanup:
+  interval: "60s"
+  flow_ttl: "30m"
+  session_ttl: "12h"

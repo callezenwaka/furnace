@@ -1,0 +1,521 @@
+package httpapi
+
+import (
+	"encoding/json"
+	"fmt"
+	"html/template"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/gorilla/mux"
+
+	"authpilot/server/internal/domain"
+	flowengine "authpilot/server/internal/flow"
+	"authpilot/server/internal/store"
+)
+
+const defaultFlowTTL = 30 * time.Minute
+
+type flowMutationRequest struct {
+	UserID        string `json:"user_id"`
+	Code          string `json:"code"`
+	ExpectedState string `json:"expected_state"`
+}
+
+type loginViewData struct {
+	FlowID   string
+	Flow     domain.Flow
+	Users    []domain.User
+	User     domain.User
+	Error    string
+	HasError bool
+}
+
+var loginTemplate = template.Must(template.New("login").Parse(`<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Authpilot Login</title></head>
+<body>
+  <h1>Sign In</h1>
+  <p>Flow ID: {{.FlowID}}</p>
+  {{if .HasError}}<p style="color:#b00">{{.Error}}</p>{{end}}
+  <form method="post" action="/login/select-user?flow_id={{.FlowID}}">
+    {{range .Users}}
+      <label style="display:block;margin:8px 0;">
+        <input type="radio" name="user_id" value="{{.ID}}" required>
+        {{.DisplayName}} ({{.Email}}) - MFA: {{.MFAMethod}}
+      </label>
+    {{end}}
+    <button type="submit">Continue</button>
+  </form>
+</body>
+</html>`))
+
+var mfaTemplate = template.Must(template.New("mfa").Parse(`<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Authpilot MFA</title></head>
+<body>
+  <h1>Multi-Factor Authentication</h1>
+  <p>Flow ID: {{.FlowID}}</p>
+  <p>User: {{.User.DisplayName}} ({{.User.Email}})</p>
+  <p>State: {{.Flow.State}}</p>
+  {{if .HasError}}<p style="color:#b00">{{.Error}}</p>{{end}}
+
+  {{if eq .User.MFAMethod "push"}}
+    <p>Waiting for push approval...</p>
+    <form method="post" action="/api/v1/flows/{{.FlowID}}/approve">
+      <button type="submit">Approve Push</button>
+    </form>
+    <script>
+      const flowId = {{printf "%q" .FlowID}};
+      setInterval(async () => {
+        const res = await fetch('/api/v1/flows/' + flowId);
+        if (!res.ok) return;
+        const flow = await res.json();
+        if (flow.state === 'mfa_approved' || flow.state === 'complete') {
+          window.location.href = '/login/mfa?flow_id=' + flowId;
+        }
+      }, 2000);
+    </script>
+  {{else}}
+    <form method="post" action="/login/mfa?flow_id={{.FlowID}}">
+      <label>Code <input type="text" name="code" required></label>
+      <button type="submit">Verify</button>
+    </form>
+  {{end}}
+</body>
+</html>`))
+
+var completeTemplate = template.Must(template.New("complete").Parse(`<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Authpilot Complete</title></head>
+<body>
+  <h1>Flow Result</h1>
+  <p>Flow ID: {{.FlowID}}</p>
+  <p>State: {{.Flow.State}}</p>
+  {{if .Flow.UserID}}<p>User: {{.User.DisplayName}} ({{.User.Email}})</p>{{end}}
+  {{if .Flow.Error}}<p style="color:#b00">Error: {{.Flow.Error}}</p>{{end}}
+  <p><a href="/login?flow_id={{.FlowID}}">Back to login</a></p>
+</body>
+</html>`))
+
+func listFlowsHandler(flows store.FlowStore) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		result, err := flows.List()
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "list_flows_failed", err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, result)
+	}
+}
+
+func createFlowHandler(flows store.FlowStore) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		protocol := strings.TrimSpace(r.URL.Query().Get("protocol"))
+		if protocol == "" {
+			protocol = "oidc"
+		}
+		now := time.Now().UTC()
+		flow := domain.Flow{
+			ID:        fmt.Sprintf("flow_%d", now.UnixNano()),
+			State:     string(flowengine.StateInitiated),
+			Scenario:  string(flowengine.ScenarioNormal),
+			Protocol:  protocol,
+			CreatedAt: now,
+			ExpiresAt: now.Add(defaultFlowTTL),
+		}
+		created, err := flows.Create(flow)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "create_flow_failed", err.Error())
+			return
+		}
+		writeJSON(w, http.StatusCreated, created)
+	}
+}
+
+func getFlowHandler(flows store.FlowStore) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		flowID := mux.Vars(r)["id"]
+		flow, err := getAndAutoAdvanceFlow(flows, flowID)
+		if err != nil {
+			if err == store.ErrNotFound {
+				writeError(w, http.StatusNotFound, "not_found", "flow not found")
+				return
+			}
+			writeError(w, http.StatusInternalServerError, "get_flow_failed", err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, flow)
+	}
+}
+
+func selectUserFlowHandler(flows store.FlowStore, users store.UserStore) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		flowID := mux.Vars(r)["id"]
+		req, err := decodeFlowMutationRequest(r)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		updated, status, code, msg := applySelectUser(flows, users, flowID, req.UserID, req.ExpectedState)
+		if status != 0 {
+			writeError(w, status, code, msg)
+			return
+		}
+		writeJSON(w, http.StatusOK, updated)
+	}
+}
+
+func verifyMFAFlowHandler(flows store.FlowStore, users store.UserStore) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		flowID := mux.Vars(r)["id"]
+		req, err := decodeFlowMutationRequest(r)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		updated, status, code, msg := applyVerifyMFA(flows, users, flowID, req.Code, req.ExpectedState)
+		if status != 0 {
+			writeError(w, status, code, msg)
+			return
+		}
+		writeJSON(w, http.StatusOK, updated)
+	}
+}
+
+func approveFlowHandler(flows store.FlowStore, users store.UserStore) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		flowID := mux.Vars(r)["id"]
+		flow, status, code, msg := approveOrDenyFlow(flows, users, flowID, true)
+		if status != 0 {
+			writeError(w, status, code, msg)
+			return
+		}
+		writeJSON(w, http.StatusOK, flow)
+	}
+}
+
+func denyFlowHandler(flows store.FlowStore) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		flowID := mux.Vars(r)["id"]
+		flow, status, code, msg := approveOrDenyFlow(flows, nil, flowID, false)
+		if status != 0 {
+			writeError(w, status, code, msg)
+			return
+		}
+		writeJSON(w, http.StatusOK, flow)
+	}
+}
+
+func loginPageHandler(flows store.FlowStore, users store.UserStore) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		flowID := strings.TrimSpace(r.URL.Query().Get("flow_id"))
+		if flowID == "" {
+			now := time.Now().UTC()
+			created, err := flows.Create(domain.Flow{
+				ID:        fmt.Sprintf("flow_%d", now.UnixNano()),
+				State:     string(flowengine.StateInitiated),
+				Scenario:  string(flowengine.ScenarioNormal),
+				Protocol:  "oidc",
+				CreatedAt: now,
+				ExpiresAt: now.Add(defaultFlowTTL),
+			})
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "create_flow_failed", err.Error())
+				return
+			}
+			http.Redirect(w, r, "/login?flow_id="+created.ID, http.StatusFound)
+			return
+		}
+
+		flow, err := getAndAutoAdvanceFlow(flows, flowID)
+		if err != nil {
+			writeError(w, http.StatusNotFound, "not_found", "flow not found")
+			return
+		}
+		userList, err := users.List()
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "list_users_failed", err.Error())
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_ = loginTemplate.Execute(w, loginViewData{FlowID: flowID, Flow: flow, Users: userList})
+	}
+}
+
+func loginSelectUserHandler(flows store.FlowStore, users store.UserStore) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_form", err.Error())
+			return
+		}
+		flowID := strings.TrimSpace(r.URL.Query().Get("flow_id"))
+		userID := strings.TrimSpace(r.FormValue("user_id"))
+		updated, status, _, msg := applySelectUser(flows, users, flowID, userID, "")
+		if status != 0 {
+			flow, _ := flows.GetByID(flowID)
+			userList, _ := users.List()
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			_ = loginTemplate.Execute(w, loginViewData{FlowID: flowID, Flow: flow, Users: userList, Error: msg, HasError: true})
+			return
+		}
+		switch updated.State {
+		case string(flowengine.StateMFAPending), string(flowengine.StateMFAApproved):
+			http.Redirect(w, r, "/login/mfa?flow_id="+flowID, http.StatusFound)
+		default:
+			http.Redirect(w, r, "/login/complete?flow_id="+flowID, http.StatusFound)
+		}
+	}
+}
+
+func loginMFAHandler(flows store.FlowStore, users store.UserStore) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		flowID := strings.TrimSpace(r.URL.Query().Get("flow_id"))
+		flow, err := getAndAutoAdvanceFlow(flows, flowID)
+		if err != nil {
+			writeError(w, http.StatusNotFound, "not_found", "flow not found")
+			return
+		}
+		if flow.State == string(flowengine.StateMFAApproved) {
+			if completed, ok := moveToComplete(flows, flow); ok {
+				flow = completed
+			}
+		}
+		if flow.State == string(flowengine.StateComplete) || flow.State == string(flowengine.StateError) {
+			http.Redirect(w, r, "/login/complete?flow_id="+flowID, http.StatusFound)
+			return
+		}
+		user, _ := users.GetByID(flow.UserID)
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_ = mfaTemplate.Execute(w, loginViewData{FlowID: flowID, Flow: flow, User: user})
+	}
+}
+
+func loginMFASubmitHandler(flows store.FlowStore, users store.UserStore) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_form", err.Error())
+			return
+		}
+		flowID := strings.TrimSpace(r.URL.Query().Get("flow_id"))
+		code := strings.TrimSpace(r.FormValue("code"))
+		_, status, _, msg := applyVerifyMFA(flows, users, flowID, code, "")
+		if status != 0 {
+			flow, _ := flows.GetByID(flowID)
+			user, _ := users.GetByID(flow.UserID)
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			_ = mfaTemplate.Execute(w, loginViewData{FlowID: flowID, Flow: flow, User: user, Error: msg, HasError: true})
+			return
+		}
+		http.Redirect(w, r, "/login/mfa?flow_id="+flowID, http.StatusFound)
+	}
+}
+
+func loginCompleteHandler(flows store.FlowStore, users store.UserStore) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		flowID := strings.TrimSpace(r.URL.Query().Get("flow_id"))
+		flow, err := flows.GetByID(flowID)
+		if err != nil {
+			writeError(w, http.StatusNotFound, "not_found", "flow not found")
+			return
+		}
+		user, _ := users.GetByID(flow.UserID)
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_ = completeTemplate.Execute(w, loginViewData{FlowID: flowID, Flow: flow, User: user})
+	}
+}
+
+func decodeFlowMutationRequest(r *http.Request) (flowMutationRequest, error) {
+	if r.Body == nil {
+		return flowMutationRequest{}, nil
+	}
+	defer r.Body.Close()
+	var req flowMutationRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if strings.Contains(err.Error(), "EOF") {
+			return flowMutationRequest{}, nil
+		}
+		return flowMutationRequest{}, err
+	}
+	return req, nil
+}
+
+func applySelectUser(flows store.FlowStore, users store.UserStore, flowID, userID, expectedState string) (domain.Flow, int, string, string) {
+	if flowID == "" || userID == "" {
+		return domain.Flow{}, http.StatusBadRequest, "validation_error", "flow_id and user_id are required"
+	}
+
+	flow, err := flows.GetByID(flowID)
+	if err != nil {
+		return domain.Flow{}, http.StatusNotFound, "not_found", "flow not found"
+	}
+	if expectedState != "" && flow.State != expectedState {
+		return domain.Flow{}, http.StatusConflict, "state_transition_invalid", "current state does not match expected_state"
+	}
+	if !flowengine.CanTransition(flowengine.State(flow.State), flowengine.StateUserPicked) {
+		return domain.Flow{}, http.StatusConflict, "state_transition_invalid", "invalid flow transition"
+	}
+
+	user, err := users.GetByID(userID)
+	if err != nil {
+		return domain.Flow{}, http.StatusNotFound, "not_found", "user not found"
+	}
+
+	flow.UserID = userID
+	flow.State = string(flowengine.StateUserPicked)
+	flow.Scenario = string(flowengine.NormalizeScenario(user.NextFlow))
+	flow.Error = ""
+
+	scenario := flowengine.NormalizeScenario(flow.Scenario)
+	if scenario == flowengine.ScenarioAccountLocked {
+		if !flowengine.CanTransition(flowengine.State(flow.State), flowengine.StateError) {
+			return domain.Flow{}, http.StatusConflict, "state_transition_invalid", "invalid flow transition"
+		}
+		flow.State = string(flowengine.StateError)
+		flow.Error = "account locked"
+		updated, err := flows.Update(flow)
+		if err != nil {
+			return domain.Flow{}, http.StatusInternalServerError, "update_flow_failed", err.Error()
+		}
+		return updated, 0, "", ""
+	}
+
+	if flowengine.RequiresMFA(user.MFAMethod) {
+		if !flowengine.CanTransition(flowengine.State(flow.State), flowengine.StateMFAPending) {
+			return domain.Flow{}, http.StatusConflict, "state_transition_invalid", "invalid flow transition"
+		}
+		flow.State = string(flowengine.StateMFAPending)
+		updated, err := flows.Update(flow)
+		if err != nil {
+			return domain.Flow{}, http.StatusInternalServerError, "update_flow_failed", err.Error()
+		}
+		return updated, 0, "", ""
+	}
+
+	if !flowengine.CanTransition(flowengine.State(flow.State), flowengine.StateComplete) {
+		return domain.Flow{}, http.StatusConflict, "state_transition_invalid", "invalid flow transition"
+	}
+	flow.State = string(flowengine.StateComplete)
+	if scenario != flowengine.ScenarioNormal {
+		user.NextFlow = string(flowengine.ScenarioNormal)
+		_, _ = users.Update(user)
+	}
+	updated, err := flows.Update(flow)
+	if err != nil {
+		return domain.Flow{}, http.StatusInternalServerError, "update_flow_failed", err.Error()
+	}
+	return updated, 0, "", ""
+}
+
+func applyVerifyMFA(flows store.FlowStore, users store.UserStore, flowID, code, expectedState string) (domain.Flow, int, string, string) {
+	if flowID == "" {
+		return domain.Flow{}, http.StatusBadRequest, "validation_error", "flow_id is required"
+	}
+	flow, err := flows.GetByID(flowID)
+	if err != nil {
+		return domain.Flow{}, http.StatusNotFound, "not_found", "flow not found"
+	}
+	if expectedState != "" && flow.State != expectedState {
+		return domain.Flow{}, http.StatusConflict, "state_transition_invalid", "current state does not match expected_state"
+	}
+	if flow.State != string(flowengine.StateMFAPending) {
+		return domain.Flow{}, http.StatusConflict, "state_transition_invalid", "flow is not awaiting MFA"
+	}
+
+	flow.Attempts++
+	scenario := flowengine.NormalizeScenario(flow.Scenario)
+	if scenario == flowengine.ScenarioMFAFail && flow.Attempts == 1 {
+		if _, err := flows.Update(flow); err != nil {
+			return domain.Flow{}, http.StatusInternalServerError, "update_flow_failed", err.Error()
+		}
+		return domain.Flow{}, http.StatusUnauthorized, "mfa_code_invalid", "invalid MFA code"
+	}
+	if strings.TrimSpace(code) == "" {
+		if _, err := flows.Update(flow); err != nil {
+			return domain.Flow{}, http.StatusInternalServerError, "update_flow_failed", err.Error()
+		}
+		return domain.Flow{}, http.StatusBadRequest, "validation_error", "code is required"
+	}
+	if !flowengine.CanTransition(flowengine.State(flow.State), flowengine.StateMFAApproved) {
+		return domain.Flow{}, http.StatusConflict, "state_transition_invalid", "invalid flow transition"
+	}
+	flow.State = string(flowengine.StateMFAApproved)
+	updated, err := flows.Update(flow)
+	if err != nil {
+		return domain.Flow{}, http.StatusInternalServerError, "update_flow_failed", err.Error()
+	}
+	if user, err := users.GetByID(updated.UserID); err == nil && scenario != flowengine.ScenarioNormal {
+		user.NextFlow = string(flowengine.ScenarioNormal)
+		_, _ = users.Update(user)
+	}
+	return updated, 0, "", ""
+}
+
+func approveOrDenyFlow(flows store.FlowStore, users store.UserStore, flowID string, approve bool) (domain.Flow, int, string, string) {
+	flow, err := flows.GetByID(flowID)
+	if err != nil {
+		return domain.Flow{}, http.StatusNotFound, "not_found", "flow not found"
+	}
+	if flow.State != string(flowengine.StateMFAPending) {
+		return domain.Flow{}, http.StatusConflict, "state_transition_invalid", "flow is not awaiting MFA"
+	}
+
+	if approve {
+		if flowengine.NormalizeScenario(flow.Scenario) == flowengine.ScenarioSlowMFA && time.Since(flow.CreatedAt) < 10*time.Second {
+			return flow, http.StatusAccepted, "mfa_pending", "waiting for slow_mfa delay"
+		}
+		if !flowengine.CanTransition(flowengine.State(flow.State), flowengine.StateMFAApproved) {
+			return domain.Flow{}, http.StatusConflict, "state_transition_invalid", "invalid flow transition"
+		}
+		flow.State = string(flowengine.StateMFAApproved)
+	} else {
+		if !flowengine.CanTransition(flowengine.State(flow.State), flowengine.StateMFADenied) {
+			return domain.Flow{}, http.StatusConflict, "state_transition_invalid", "invalid flow transition"
+		}
+		flow.State = string(flowengine.StateMFADenied)
+	}
+
+	updated, err := flows.Update(flow)
+	if err != nil {
+		return domain.Flow{}, http.StatusInternalServerError, "update_flow_failed", err.Error()
+	}
+	if approve && users != nil {
+		if user, err := users.GetByID(updated.UserID); err == nil && flowengine.NormalizeScenario(updated.Scenario) != flowengine.ScenarioNormal {
+			user.NextFlow = string(flowengine.ScenarioNormal)
+			_, _ = users.Update(user)
+		}
+	}
+	return updated, 0, "", ""
+}
+
+func getAndAutoAdvanceFlow(flows store.FlowStore, flowID string) (domain.Flow, error) {
+	flow, err := flows.GetByID(flowID)
+	if err != nil {
+		return domain.Flow{}, err
+	}
+	if flow.State == string(flowengine.StateMFAPending) && flowengine.NormalizeScenario(flow.Scenario) == flowengine.ScenarioSlowMFA {
+		if time.Since(flow.CreatedAt) >= 10*time.Second {
+			if flowengine.CanTransition(flowengine.State(flow.State), flowengine.StateMFAApproved) {
+				flow.State = string(flowengine.StateMFAApproved)
+				updated, updateErr := flows.Update(flow)
+				if updateErr == nil {
+					flow = updated
+				}
+			}
+		}
+	}
+	return flow, nil
+}
+
+func moveToComplete(flows store.FlowStore, flow domain.Flow) (domain.Flow, bool) {
+	if !flowengine.CanTransition(flowengine.State(flow.State), flowengine.StateComplete) {
+		return flow, false
+	}
+	flow.State = string(flowengine.StateComplete)
+	updated, err := flows.Update(flow)
+	if err != nil {
+		return flow, false
+	}
+	return updated, true
+}

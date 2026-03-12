@@ -22,5 +22,13 @@ pnpm-debug.log*
 *.sln
 *.sw?
 
+# Go artifacts
+/authpilot
+/bin/
+
+# Local runtime data
+/data/
+*.db
+
 roadmap-v1.md
 spec-v1.md
