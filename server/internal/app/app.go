@@ -11,6 +11,7 @@ import (
 	"authpilot/server/internal/config"
 	"authpilot/server/internal/httpapi"
 	oidcengine "authpilot/server/internal/oidc"
+	samlengine "authpilot/server/internal/saml"
 	"authpilot/server/internal/store"
 	"authpilot/server/internal/store/memory"
 	sqliteStore "authpilot/server/internal/store/sqlite"
@@ -89,9 +90,35 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 		LoginURL:  loginURL,
 	})
 
+	samlCertMgr, err := samlengine.NewCertManagerFromPath(cfg.SAML.CertDir)
+	if err != nil {
+		return nil, fmt.Errorf("initialize saml cert manager: %w", err)
+	}
+	protocolBase := "http://localhost" + cfg.ProtocolAddr
+	samlEntityID := cfg.SAML.EntityID
+	if samlEntityID == "" {
+		samlEntityID = protocolBase
+	}
+	samlRouter := samlengine.NewRouter(samlengine.RouterDeps{
+		Flows:      flows,
+		Users:      users,
+		Sessions:   sessions,
+		CertMgr:    samlCertMgr,
+		EntityID:   samlEntityID,
+		SSOURL:     samlEntityID + "/saml/sso",
+		SLOURL:     samlEntityID + "/saml/slo",
+		LoginURL:   loginURL,
+		SessionTTL: 1 * time.Hour,
+	})
+
+	// Combine OIDC and SAML on the protocol server using a path-based dispatcher.
+	protocolMux := http.NewServeMux()
+	protocolMux.Handle("/saml/", samlRouter)
+	protocolMux.Handle("/", oidcRouter)
+
 	protocolServer := &http.Server{
 		Addr:              cfg.ProtocolAddr,
-		Handler:           oidcRouter,
+		Handler:           protocolMux,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

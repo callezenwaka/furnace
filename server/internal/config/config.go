@@ -19,7 +19,17 @@ type Config struct {
 	Persistence  PersistenceConfig `yaml:"persistence"`
 	Cleanup      CleanupConfig     `yaml:"cleanup"`
 	OIDC         OIDCConfig        `yaml:"oidc"`
+	SAML         SAMLConfig        `yaml:"saml"`
 	APIKey       string            `yaml:"api_key"` // empty = local dev mode (no auth)
+}
+
+type SAMLConfig struct {
+	// EntityID is the IdP entity ID advertised in metadata.
+	// Defaults to the protocol address base URL.
+	EntityID string `yaml:"entity_id"`
+	// CertDir is the directory where the SAML signing key and certificate are
+	// persisted. If empty, a fresh ephemeral key pair is generated each startup.
+	CertDir string `yaml:"cert_dir"`
 }
 
 type OIDCConfig struct {
@@ -68,6 +78,9 @@ func Defaults() Config {
 			AccessTokenTTL:  1 * time.Hour,
 			IDTokenTTL:      1 * time.Hour,
 			RefreshTokenTTL: 30 * 24 * time.Hour,
+		},
+		SAML: SAMLConfig{
+			EntityID: "http://localhost:8026",
 		},
 	}
 }
@@ -248,6 +261,12 @@ func applyEnv(cfg *Config) error {
 	}
 	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_API_KEY")); v != "" {
 		cfg.APIKey = v
+	}
+	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_SAML_ENTITY_ID")); v != "" {
+		cfg.SAML.EntityID = v
+	}
+	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_SAML_CERT_DIR")); v != "" {
+		cfg.SAML.CertDir = v
 	}
 
 	return nil

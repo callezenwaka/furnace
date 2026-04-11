@@ -7,7 +7,7 @@ A local-first authentication development platform. Build and test OIDC flows aga
 | Port | Purpose |
 |------|---------|
 | `:8025` | Web UI, admin SPA, management API |
-| `:8026` | OIDC protocol endpoints |
+| `:8026` | OIDC and SAML protocol endpoints |
 
 ## Quick Start
 
@@ -72,6 +72,8 @@ Config precedence: runtime flags > environment variables > YAML file > defaults.
 | `AUTHPILOT_SQLITE_PATH` | `./data/authpilot.db` | SQLite database path |
 | `AUTHPILOT_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, or `error` |
 | `AUTHPILOT_API_KEY` | _(unset)_ | Protect `/api/v1` with a static key (see below) |
+| `AUTHPILOT_SAML_ENTITY_ID` | `http://localhost:8026` | SAML IdP entity ID in metadata and assertions |
+| `AUTHPILOT_SAML_CERT_DIR` | _(unset)_ | Directory to persist the SAML signing key and certificate across restarts |
 
 Enable persistence:
 
@@ -94,6 +96,33 @@ Served on `:8026`.
 | `/revoke` | POST | Token revocation |
 
 PKCE is required on every authorization request (`S256` or `plain`).
+
+## SAML Endpoints
+
+Served on `:8026` alongside OIDC.
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/saml/metadata` | GET | IdP metadata XML — includes SSO and SLO endpoints |
+| `/saml/sso` | GET, POST | SP-initiated SSO — HTTP-Redirect and HTTP-POST bindings |
+| `/saml/slo` | GET, POST | Single Logout — SP-initiated (SAMLRequest) and IdP-initiated (`?user_id=`) |
+| `/saml/cert` | GET | Download the IdP signing certificate (PEM) |
+| `/saml/flows` | GET | Debug list of active SAML flows |
+
+Configure your SP with:
+- **IdP Entity ID:** `http://localhost:8026`
+- **SSO URL:** `http://localhost:8026/saml/sso`
+- **SLO URL:** `http://localhost:8026/saml/slo`
+- **Metadata URL:** `http://localhost:8026/saml/metadata`
+- **Signing Certificate:** `http://localhost:8026/saml/cert`
+
+Assertions are signed with RSA-SHA256 using Exclusive XML Canonicalization (exc-c14n), the standard used by most SPs. A self-signed certificate is generated at startup and is ephemeral by default — set `AUTHPILOT_SAML_CERT_DIR` to persist the key and certificate across restarts. Override the entity ID with `AUTHPILOT_SAML_ENTITY_ID` if your SP requires a specific value.
+
+To trigger IdP-initiated logout for a user:
+
+```bash
+curl http://localhost:8026/saml/slo?user_id=<user-id>
+```
 
 ## Management API
 
@@ -207,6 +236,7 @@ The hub polls `/api/v1/notifications/all` every 3 seconds.
 │   │   ├── httpapi/      # Web UI and management API handlers
 │   │   ├── notify/       # MFA notification payload generation
 │   │   ├── oidc/         # OIDC engine
+│   │   ├── saml/         # SAML 2.0 engine
 │   │   └── store/        # Memory and SQLite stores
 │   └── web/
 │       ├── static/       # Built SPA assets
