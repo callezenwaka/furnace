@@ -1,0 +1,294 @@
+package httpapi
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+
+	"authpilot/server/internal/store/memory"
+)
+
+func newM7Router() http.Handler {
+	return NewRouter(Dependencies{
+		Users:     memory.NewUserStore(),
+		Groups:    memory.NewGroupStore(),
+		Flows:     memory.NewFlowStore(),
+		Sessions:  memory.NewSessionStore(),
+		RateLimit: 100,
+	})
+}
+
+// --- OpenAPI ---
+
+func TestOpenAPISpecHandler(t *testing.T) {
+	r := newM7Router()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/openapi.json", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", rec.Code)
+	}
+	if !strings.Contains(rec.Header().Get("Content-Type"), "application/json") {
+		t.Errorf("content-type = %q, want application/json", rec.Header().Get("Content-Type"))
+	}
+	// Must be valid JSON with openapi field.
+	var spec map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &spec); err != nil {
+		t.Fatalf("openapi.json is not valid JSON: %v", err)
+	}
+	if spec["openapi"] == nil {
+		t.Error("expected 'openapi' field in spec")
+	}
+	if spec["paths"] == nil {
+		t.Error("expected 'paths' field in spec")
+	}
+}
+
+func TestOpenAPIDocsHandler(t *testing.T) {
+	r := newM7Router()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/docs", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "swagger") {
+		t.Error("expected swagger UI reference in docs page")
+	}
+}
+
+// --- Export ---
+
+func TestExportHandlerSCIM(t *testing.T) {
+	r := newM7Router()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/export?format=scim", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", rec.Code)
+	}
+	if !strings.Contains(rec.Header().Get("Content-Type"), "application/json") {
+		t.Errorf("content-type = %q", rec.Header().Get("Content-Type"))
+	}
+	if rec.Header().Get("Content-Disposition") == "" {
+		t.Error("expected Content-Disposition header")
+	}
+}
+
+func TestExportHandlerOkta(t *testing.T) {
+	r := newM7Router()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/export?format=okta", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", rec.Code)
+	}
+	if !strings.Contains(rec.Header().Get("Content-Type"), "text/csv") {
+		t.Errorf("content-type = %q", rec.Header().Get("Content-Type"))
+	}
+}
+
+func TestExportHandlerAzure(t *testing.T) {
+	r := newM7Router()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/export?format=azure", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", rec.Code)
+	}
+}
+
+func TestExportHandlerGoogle(t *testing.T) {
+	r := newM7Router()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/export?format=google", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", rec.Code)
+	}
+}
+
+func TestExportHandlerMissingFormat(t *testing.T) {
+	r := newM7Router()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/export", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", rec.Code)
+	}
+}
+
+func TestExportHandlerUnknownFormat(t *testing.T) {
+	r := newM7Router()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/export?format=nope", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", rec.Code)
+	}
+}
+
+// --- Rate limiting ---
+
+func TestRateLimiter_AllowsUnderLimit(t *testing.T) {
+	rl := NewRateLimiter(10, time.Minute)
+	for i := 0; i < 10; i++ {
+		if !rl.allow("127.0.0.1") {
+			t.Errorf("request %d should be allowed", i+1)
+		}
+	}
+}
+
+func TestRateLimiter_BlocksOverLimit(t *testing.T) {
+	rl := NewRateLimiter(3, time.Minute)
+	for i := 0; i < 3; i++ {
+		rl.allow("10.0.0.1")
+	}
+	if rl.allow("10.0.0.1") {
+		t.Error("4th request should be rate limited")
+	}
+}
+
+func TestRateLimiter_IndependentPerIP(t *testing.T) {
+	rl := NewRateLimiter(2, time.Minute)
+	rl.allow("1.1.1.1")
+	rl.allow("1.1.1.1")
+	if rl.allow("1.1.1.1") {
+		t.Error("3rd request from 1.1.1.1 should be blocked")
+	}
+	// Different IP should still be allowed.
+	if !rl.allow("2.2.2.2") {
+		t.Error("request from 2.2.2.2 should be allowed")
+	}
+}
+
+func TestRateLimitMiddleware_Returns429(t *testing.T) {
+	rl := NewRateLimiter(1, time.Minute)
+	handler := rateLimitMiddleware(rl)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	// First request — should pass.
+	req1 := httptest.NewRequest(http.MethodGet, "/", nil)
+	req1.RemoteAddr = "5.5.5.5:1234"
+	rec1 := httptest.NewRecorder()
+	handler.ServeHTTP(rec1, req1)
+	if rec1.Code != http.StatusOK {
+		t.Errorf("first request status = %d, want 200", rec1.Code)
+	}
+
+	// Second request — should be rate limited.
+	req2 := httptest.NewRequest(http.MethodGet, "/", nil)
+	req2.RemoteAddr = "5.5.5.5:1235"
+	rec2 := httptest.NewRecorder()
+	handler.ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusTooManyRequests {
+		t.Errorf("second request status = %d, want 429", rec2.Code)
+	}
+}
+
+// --- Idempotency ---
+
+func TestIdempotencyMiddleware_CachesResponse(t *testing.T) {
+	store := newIdempotencyStore(5 * time.Minute)
+	calls := 0
+	handler := idempotencyMiddleware(store)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"id":"u1"}`))
+	}))
+
+	for i := 0; i < 3; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/users", strings.NewReader(`{}`))
+		req.Header.Set("Idempotency-Key", "key-abc")
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusCreated {
+			t.Errorf("request %d: status = %d, want 201", i+1, rec.Code)
+		}
+		if !strings.Contains(rec.Body.String(), "u1") {
+			t.Errorf("request %d: unexpected body: %s", i+1, rec.Body.String())
+		}
+	}
+
+	// Handler should only have been called once.
+	if calls != 1 {
+		t.Errorf("handler called %d times, want 1", calls)
+	}
+}
+
+func TestIdempotencyMiddleware_ReplayHeader(t *testing.T) {
+	store := newIdempotencyStore(5 * time.Minute)
+	handler := idempotencyMiddleware(store)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+	}))
+
+	makeReq := func() *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/groups", strings.NewReader(`{}`))
+		req.Header.Set("Idempotency-Key", "key-xyz")
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		return rec
+	}
+
+	makeReq() // first — no replay header
+	rec2 := makeReq()
+	if rec2.Header().Get("Idempotent-Replayed") != "true" {
+		t.Error("expected Idempotent-Replayed: true on second request")
+	}
+}
+
+func TestIdempotencyMiddleware_SkipsNonPost(t *testing.T) {
+	store := newIdempotencyStore(5 * time.Minute)
+	calls := 0
+	handler := idempotencyMiddleware(store)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	for i := 0; i < 3; i++ {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/users", nil)
+		req.Header.Set("Idempotency-Key", "key-get")
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		_ = rec
+	}
+
+	if calls != 3 {
+		t.Errorf("GET requests should not be cached; handler called %d times, want 3", calls)
+	}
+}
+
+func TestIdempotencyMiddleware_DifferentKeys(t *testing.T) {
+	store := newIdempotencyStore(5 * time.Minute)
+	calls := 0
+	handler := idempotencyMiddleware(store)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.WriteHeader(http.StatusCreated)
+	}))
+
+	for i := 0; i < 3; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/users", strings.NewReader(`{}`))
+		req.Header.Set("Idempotency-Key", "key-unique-"+string(rune('A'+i)))
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		_ = rec
+	}
+
+	if calls != 3 {
+		t.Errorf("different keys should not share cache; handler called %d times, want 3", calls)
+	}
+}

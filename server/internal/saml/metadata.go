@@ -225,11 +225,6 @@ func acsFromRequest(req *AuthnRequest, allowedACS []string) (string, error) {
 	return acs, nil
 }
 
-// issueInstantNow returns an XML datetime string for now.
-func issueInstantNow() string {
-	return time.Now().UTC().Format("2006-01-02T15:04:05Z")
-}
-
 // escapeAttrVal escapes a string for use in an XML attribute value.
 func escapeAttrVal(s string) string {
 	s = strings.ReplaceAll(s, "&", "&amp;")

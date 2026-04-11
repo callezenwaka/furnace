@@ -55,12 +55,13 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 
 	httpBaseURL := "http://localhost" + cfg.HTTPAddr
 	router := httpapi.NewRouter(httpapi.Dependencies{
-		Users:    users,
-		Groups:   groups,
-		Flows:    flows,
-		Sessions: sessions,
-		APIKey:   cfg.APIKey,
-		BaseURL:  httpBaseURL,
+		Users:     users,
+		Groups:    groups,
+		Flows:     flows,
+		Sessions:  sessions,
+		APIKey:    cfg.APIKey,
+		BaseURL:   httpBaseURL,
+		RateLimit: cfg.RateLimit,
 	})
 
 	httpServer := &http.Server{

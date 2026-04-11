@@ -65,15 +65,6 @@ func (s *nsStack) declare(prefix, uri string) {
 	s.frames[len(s.frames)-1][prefix] = uri
 }
 
-// lookup returns the URI for a prefix visible at the current depth, or "".
-func (s *nsStack) lookup(prefix string) string {
-	for i := len(s.frames) - 1; i >= 0; i-- {
-		if uri, ok := s.frames[i][prefix]; ok {
-			return uri
-		}
-	}
-	return ""
-}
 
 // needsDeclaration returns true if prefix→uri is not already visible in a parent frame.
 func (s *nsStack) needsDeclaration(prefix, uri string) bool {

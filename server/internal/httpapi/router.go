@@ -13,19 +13,21 @@ import (
 	"github.com/gorilla/mux"
 
 	"authpilot/server/internal/domain"
+	"authpilot/server/internal/export"
 	"authpilot/server/internal/notify"
 	"authpilot/server/internal/store"
 )
 
 type Dependencies struct {
-	Users          store.UserStore
-	Groups         store.GroupStore
-	Flows          store.FlowStore
-	Sessions       store.SessionStore
-	AdminStaticDir string
+	Users           store.UserStore
+	Groups          store.GroupStore
+	Flows           store.FlowStore
+	Sessions        store.SessionStore
+	AdminStaticDir  string
 	NotifyStaticDir string
-	APIKey         string // empty = local dev mode (no auth required)
-	BaseURL        string // e.g. "http://localhost:8025" — used for magic link URLs
+	APIKey          string // empty = local dev mode (no auth required)
+	BaseURL         string // e.g. "http://localhost:8025" — used for magic link URLs
+	RateLimit       int    // requests per minute per IP; 0 = disabled
 }
 
 func NewRouter(dep Dependencies) http.Handler {
@@ -45,6 +47,18 @@ func NewRouter(dep Dependencies) http.Handler {
 
 	api := r.PathPrefix("/api/v1").Subrouter()
 	api.Use(apiKeyMiddleware(dep.APIKey))
+
+	if dep.RateLimit > 0 {
+		rl := NewRateLimiter(dep.RateLimit, time.Minute)
+		api.Use(rateLimitMiddleware(rl))
+	}
+
+	idempStore := newIdempotencyStore(5 * time.Minute)
+	api.Use(idempotencyMiddleware(idempStore))
+
+	// Meta endpoints — no auth needed even in protected mode.
+	api.HandleFunc("/openapi.json", openAPISpecHandler).Methods(http.MethodGet)
+	api.HandleFunc("/docs", openAPIDocsHandler).Methods(http.MethodGet)
 
 	api.HandleFunc("/users", listUsersHandler(dep.Users)).Methods(http.MethodGet)
 	api.HandleFunc("/users", createUserHandler(dep.Users)).Methods(http.MethodPost)
@@ -70,7 +84,52 @@ func NewRouter(dep Dependencies) http.Handler {
 	api.HandleFunc("/notifications", listNotificationsHandler(dep.Flows, dep.Users, dep.BaseURL)).Methods(http.MethodGet)
 	api.HandleFunc("/notifications/all", listAllNotificationsHandler(dep.Flows, dep.Users, dep.BaseURL)).Methods(http.MethodGet)
 
+	api.HandleFunc("/export", exportHandler(dep.Users, dep.Groups)).Methods(http.MethodGet)
+
 	return r
+}
+
+func openAPISpecHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write([]byte(openAPISpec))
+}
+
+func openAPIDocsHandler(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write([]byte(openAPIDocsHTML))
+}
+
+func exportHandler(users store.UserStore, groups store.GroupStore) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		rawFormat := strings.TrimSpace(r.URL.Query().Get("format"))
+		if rawFormat == "" {
+			writeAPIError(w, r, http.StatusBadRequest, "INVALID_REQUEST", "format query parameter is required (scim, okta, azure, google)", false)
+			return
+		}
+		f, err := export.ParseFormat(rawFormat)
+		if err != nil {
+			writeAPIError(w, r, http.StatusBadRequest, "INVALID_FORMAT", err.Error(), false)
+			return
+		}
+		userList, err := users.List()
+		if err != nil {
+			writeAPIError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error(), false)
+			return
+		}
+		groupList, err := groups.List()
+		if err != nil {
+			writeAPIError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error(), false)
+			return
+		}
+		data, err := export.Users(userList, groupList, f)
+		if err != nil {
+			writeAPIError(w, r, http.StatusInternalServerError, "EXPORT_FAILED", err.Error(), false)
+			return
+		}
+		w.Header().Set("Content-Type", export.ContentType(f))
+		w.Header().Set("Content-Disposition", `attachment; filename="`+export.Filename(f)+`"`)
+		_, _ = w.Write(data)
+	}
 }
 
 func registerAdminRoutes(r *mux.Router, adminStaticDir string) {

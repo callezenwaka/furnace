@@ -20,7 +20,8 @@ type Config struct {
 	Cleanup      CleanupConfig     `yaml:"cleanup"`
 	OIDC         OIDCConfig        `yaml:"oidc"`
 	SAML         SAMLConfig        `yaml:"saml"`
-	APIKey       string            `yaml:"api_key"` // empty = local dev mode (no auth)
+	APIKey       string            `yaml:"api_key"`       // empty = local dev mode (no auth)
+	RateLimit    int               `yaml:"rate_limit"`    // requests/min per IP on /api/v1; 0 = disabled
 }
 
 type SAMLConfig struct {
@@ -261,6 +262,13 @@ func applyEnv(cfg *Config) error {
 	}
 	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_API_KEY")); v != "" {
 		cfg.APIKey = v
+	}
+	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_RATE_LIMIT")); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return fmt.Errorf("AUTHPILOT_RATE_LIMIT: %w", err)
+		}
+		cfg.RateLimit = n
 	}
 	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_SAML_ENTITY_ID")); v != "" {
 		cfg.SAML.EntityID = v

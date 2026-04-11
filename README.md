@@ -74,6 +74,7 @@ Config precedence: runtime flags > environment variables > YAML file > defaults.
 | `AUTHPILOT_API_KEY` | _(unset)_ | Protect `/api/v1` with a static key (see below) |
 | `AUTHPILOT_SAML_ENTITY_ID` | `http://localhost:8026` | SAML IdP entity ID in metadata and assertions |
 | `AUTHPILOT_SAML_CERT_DIR` | _(unset)_ | Directory to persist the SAML signing key and certificate across restarts |
+| `AUTHPILOT_RATE_LIMIT` | `0` (disabled) | Requests per minute per IP on `/api/v1`; `0` disables rate limiting |
 
 Enable persistence:
 
@@ -136,6 +137,61 @@ Served on `:8025` under `/api/v1`. Every response includes an `X-Request-ID` hea
 | Flow actions | `POST /api/v1/flows/{id}/select-user` · `verify-mfa` · `approve` · `deny` |
 | Sessions | `GET /api/v1/sessions` |
 | Notifications | `GET /api/v1/notifications?flow_id=<id>`, `GET /api/v1/notifications/all` |
+| Export | `GET /api/v1/export?format=<fmt>` |
+| API contract | `GET /api/v1/openapi.json`, `GET /api/v1/docs` |
+
+### Export
+
+Export all users and groups to a format suitable for bulk import into an identity provider:
+
+```bash
+# SCIM 2.0 JSON (generic IdP)
+curl http://localhost:8025/api/v1/export?format=scim -o users.json
+
+# Okta CSV bulk import
+curl http://localhost:8025/api/v1/export?format=okta -o users.csv
+
+# Azure AD JSON bulk import
+curl http://localhost:8025/api/v1/export?format=azure -o azure-users.json
+
+# Google Workspace CSV bulk upload
+curl http://localhost:8025/api/v1/export?format=google -o google-users.csv
+```
+
+Supported formats: `scim`, `okta`, `azure`, `google`. The response includes a `Content-Disposition` header with a timestamped filename.
+
+### OpenAPI
+
+The full API contract is available as an OpenAPI 3.1 document:
+
+```bash
+curl http://localhost:8025/api/v1/openapi.json
+```
+
+An interactive Swagger UI is served at `http://localhost:8025/api/v1/docs`.
+
+### Idempotency
+
+All `POST` endpoints on `/api/v1` support idempotency keys to make retries safe:
+
+```bash
+curl -X POST http://localhost:8025/api/v1/users \
+  -H "Idempotency-Key: my-unique-key-123" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"alice@example.com","display_name":"Alice"}'
+```
+
+Repeat the same request within 5 minutes with the same key — the handler runs once and subsequent calls return the cached response with an `Idempotent-Replayed: true` header.
+
+### Rate limiting
+
+Set `AUTHPILOT_RATE_LIMIT` to cap requests per minute per IP on the management API:
+
+```bash
+AUTHPILOT_RATE_LIMIT=60 go run ./server/cmd/authpilot
+```
+
+Requests over the limit receive `429 Too Many Requests` with a `RATE_LIMITED` error code. Rate limiting is disabled when the value is `0` (default).
 
 Errors follow a standard envelope:
 

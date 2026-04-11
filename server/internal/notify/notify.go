@@ -70,8 +70,6 @@ func GenerateFor(flow domain.Flow, user domain.User, baseURL string) (Payload, d
 		return p, flow, nil
 	}
 
-	changed := false
-
 	switch user.MFAMethod {
 	case "totp":
 		p.Type = "totp"
@@ -81,7 +79,6 @@ func GenerateFor(flow domain.Flow, user domain.User, baseURL string) (Payload, d
 				return Payload{}, flow, fmt.Errorf("generate totp secret: %w", err)
 			}
 			flow.TOTPSecret = secret
-			changed = true
 		}
 		code, expiresAt, err := currentTOTPCode(flow.TOTPSecret)
 		if err != nil {
@@ -89,7 +86,6 @@ func GenerateFor(flow domain.Flow, user domain.User, baseURL string) (Payload, d
 		}
 		p.TOTPCode = code
 		p.TOTPExpiresAt = expiresAt
-		_ = changed
 
 	case "sms":
 		p.Type = "sms"
@@ -99,7 +95,6 @@ func GenerateFor(flow domain.Flow, user domain.User, baseURL string) (Payload, d
 				return Payload{}, flow, fmt.Errorf("generate sms code: %w", err)
 			}
 			flow.SMSCode = code
-			changed = true
 		}
 		p.SMSCode = flow.SMSCode
 		p.SMSTarget = maskPhone(user.PhoneNumber)
@@ -116,7 +111,6 @@ func GenerateFor(flow domain.Flow, user domain.User, baseURL string) (Payload, d
 				return Payload{}, flow, fmt.Errorf("generate magic link token: %w", err)
 			}
 			flow.MagicLinkToken = token
-			changed = true
 		}
 		p.MagicLinkURL = baseURL + "/login/magic?token=" + flow.MagicLinkToken
 		p.MagicLinkUsed = flow.MagicLinkUsed

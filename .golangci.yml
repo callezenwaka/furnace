@@ -1,0 +1,20 @@
+version: "2"
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+
+  exclusions:
+    rules:
+      # Writing to http.ResponseWriter, closing response/row bodies — errors are
+      # not actionable in handler or deferred-close contexts.
+      - linters: [errcheck]
+        text: "Error return value of `(.*\\.Write|.*\\.Close|fmt\\.Fprintf)` is not checked"
+
+issues:
+  max-issues-per-linter: 50
+  max-same-issues: 10
