@@ -32,6 +32,17 @@ type Flow struct {
 	Protocol  string    `json:"protocol"`
 	CreatedAt time.Time `json:"created_at"`
 	ExpiresAt time.Time `json:"expires_at"`
+
+	// OIDC fields — populated when Protocol == "oidc"
+	ClientID      string   `json:"client_id,omitempty"`
+	RedirectURI   string   `json:"redirect_uri,omitempty"`
+	Scopes        []string `json:"scopes,omitempty"`
+	ResponseType  string   `json:"response_type,omitempty"`
+	OAuthState    string   `json:"oauth_state,omitempty"`
+	Nonce         string   `json:"nonce,omitempty"`
+	PKCEChallenge string   `json:"pkce_challenge,omitempty"`
+	PKCEMethod    string   `json:"pkce_method,omitempty"`
+	AuthCode      string   `json:"-"` // not exposed; redeemed once at /token
 }
 
 type Session struct {

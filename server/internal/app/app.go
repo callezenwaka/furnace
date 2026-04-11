@@ -10,6 +10,7 @@ import (
 
 	"authpilot/server/internal/config"
 	"authpilot/server/internal/httpapi"
+	oidcengine "authpilot/server/internal/oidc"
 	"authpilot/server/internal/store"
 	"authpilot/server/internal/store/memory"
 	sqliteStore "authpilot/server/internal/store/sqlite"
@@ -24,9 +25,10 @@ type App struct {
 	flows    store.FlowStore
 	sessions store.SessionStore
 
-	httpServer  *http.Server
-	closers     []func() error
-	cleanupDone chan struct{}
+	httpServer     *http.Server
+	protocolServer *http.Server
+	closers        []func() error
+	cleanupDone    chan struct{}
 }
 
 func New(cfg config.Config, logger *slog.Logger) (*App, error) {
@@ -63,29 +65,64 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
+	km, err := oidcengine.NewKeyManager()
+	if err != nil {
+		return nil, fmt.Errorf("initialize oidc key manager: %w", err)
+	}
+	tokenCfg := oidcengine.TokenConfig{
+		AccessTokenTTL:  cfg.OIDC.AccessTokenTTL,
+		IDTokenTTL:      cfg.OIDC.IDTokenTTL,
+		RefreshTokenTTL: cfg.OIDC.RefreshTokenTTL,
+	}
+	issuer := oidcengine.NewIssuer(km, tokenCfg, cfg.OIDC.IssuerURL)
+	loginURL := "http://localhost" + cfg.HTTPAddr + "/login"
+	oidcRouter := oidcengine.NewRouter(oidcengine.RouterDeps{
+		Flows:     flows,
+		Users:     users,
+		Sessions:  sessions,
+		KeyMgr:    km,
+		Issuer:    issuer,
+		IssuerURL: cfg.OIDC.IssuerURL,
+		LoginURL:  loginURL,
+	})
+
+	protocolServer := &http.Server{
+		Addr:              cfg.ProtocolAddr,
+		Handler:           oidcRouter,
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+
 	return &App{
-		cfg:         cfg,
-		logger:      logger,
-		users:       users,
-		groups:      groups,
-		flows:       flows,
-		sessions:    sessions,
-		httpServer:  httpServer,
-		closers:     closers,
-		cleanupDone: make(chan struct{}),
+		cfg:            cfg,
+		logger:         logger,
+		users:          users,
+		groups:         groups,
+		flows:          flows,
+		sessions:       sessions,
+		httpServer:     httpServer,
+		protocolServer: protocolServer,
+		closers:        closers,
+		cleanupDone:    make(chan struct{}),
 	}, nil
 }
 
 func (a *App) Start(ctx context.Context) error {
 	a.startCleanupScheduler(ctx)
 
-	errCh := make(chan error, 1)
+	errCh := make(chan error, 2)
+
 	go func() {
 		a.logger.Info("http server listening", "addr", a.cfg.HTTPAddr)
 		if err := a.httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			errCh <- err
+			errCh <- fmt.Errorf("http server: %w", err)
 		}
-		close(errCh)
+	}()
+
+	go func() {
+		a.logger.Info("oidc protocol server listening", "addr", a.cfg.ProtocolAddr)
+		if err := a.protocolServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errCh <- fmt.Errorf("protocol server: %w", err)
+		}
 	}()
 
 	select {
@@ -95,7 +132,10 @@ func (a *App) Start(ctx context.Context) error {
 		defer cancel()
 
 		if err := a.httpServer.Shutdown(shutdownCtx); err != nil {
-			return fmt.Errorf("shutdown http server: %w", err)
+			a.logger.Warn("shutdown http server", "error", err)
+		}
+		if err := a.protocolServer.Shutdown(shutdownCtx); err != nil {
+			a.logger.Warn("shutdown protocol server", "error", err)
 		}
 		<-a.cleanupDone
 		for _, closeFn := range a.closers {
@@ -105,10 +145,7 @@ func (a *App) Start(ctx context.Context) error {
 		}
 		return nil
 	case err := <-errCh:
-		if err == nil {
-			return nil
-		}
-		return fmt.Errorf("http server: %w", err)
+		return err
 	}
 }
 

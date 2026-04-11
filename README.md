@@ -1,146 +1,151 @@
 # Authpilot
 
-M0/M1 baseline scaffold for the local-first auth development platform.
+A local-first authentication development platform. Build and test OIDC flows against a real protocol implementation before connecting to a production SSO provider.
 
-## What's Included
+## Ports
 
-- Go service scaffold with structured startup logging
-- Config loading with precedence:
-	runtime flags > environment > YAML > defaults
-- Health endpoint: `GET /health`
-- Baseline management APIs:
-	- `GET/POST /api/v1/users`
-	- `GET/PUT/DELETE /api/v1/users/{id}`
-	- `GET/POST /api/v1/groups`
-	- `GET/PUT/DELETE /api/v1/groups/{id}`
-- Store implementations:
-	- In-memory users/groups/flows/sessions
-	- Optional SQLite persistence for users/groups
-- Flow/session cleanup scheduler
-- Dockerfile + docker compose setup
-- CI workflow with vet, test, lint, and container build
+| Port | Purpose |
+|------|---------|
+| `:8025` | Web UI, admin SPA, management API |
+| `:8026` | OIDC protocol endpoints |
 
 ## Quick Start
-
-### Run locally
 
 ```bash
 go run ./server/cmd/authpilot
 ```
 
-### Run with config file
+With a config file:
 
 ```bash
 go run ./server/cmd/authpilot -config ./configs/authpilot.yaml
 ```
 
-### Enable persistence
-
-```bash
-go run ./server/cmd/authpilot -persistence-enabled=true -sqlite-path ./data/authpilot.db
-```
-
-### Use Docker Compose
+With Docker Compose:
 
 ```bash
 docker compose up --build
 ```
 
-## Local Run Modes
+## Make Targets
 
-Use the Makefile for predictable local ports:
+| Target | Description |
+|--------|-------------|
+| `make run` | Start on dev-safe ports (`:18025` / `:18026`) |
+| `make run-default` | Start on default ports (`:8025` / `:8026`) |
+| `make run-auto` | Try default ports, fall back to dev-safe ports |
+| `make run-bg` | Start in background, logs to `.tmp/authpilot.log` |
+| `make health` | Check health endpoint |
+| `make stop` | Stop the tracked process |
+| `make stop ALL=1` | Broader cleanup including default ports |
+| `make admin-build` | Build the Vue admin SPA |
 
-- `make run` starts with development-safe defaults:
-	- HTTP: `:18025`
-	- Protocol: `:18026`
-- `make run-auto` prefers default app ports and falls back automatically:
-	- Tries HTTP `:8025` / Protocol `:8026` first
-	- Falls back to HTTP `:18025` / Protocol `:18026` if either default port is busy
-- `make run-default` starts with app defaults:
-	- HTTP: `:8025`
-	- Protocol: `:8026`
-- `make run-bg` starts in background using the safe ports and writes logs to `.tmp/authpilot.log`
-- `make health` checks the current HTTP health endpoint for the configured run ports
-- `make stop` stops the tracked process (PID file) and listeners on configured run ports
-- `make stop ALL=1` (or `make stop all=1`) performs broader cleanup, including default ports and known authpilot process patterns
-
-You can override `make run` ports at invocation time:
+Override ports at invocation time:
 
 ```bash
 make run RUN_HTTP_ADDR=:19025 RUN_PROTOCOL_ADDR=:19026
 ```
 
-Optional build flag for run targets:
-
-- Set `BUILD=1` (or `BUILD=true`) to rebuild the admin SPA before starting.
-- Lowercase alias: set `build=1` (or `build=true`) to do the same thing.
+Rebuild the admin SPA before starting:
 
 ```bash
-make run-auto BUILD=1
 make run BUILD=1
 ```
 
-This flag is supported by `make run`, `make run-auto`, and `make run-bg`.
-
-Optional watch flag for foreground run targets:
-
-- Set `WATCH=1` (or `WATCH=true`) to watch client changes and rebuild SPA assets while the server runs.
-- Watch build logs are written to `.tmp/admin-watch.log`.
+Watch for client-side changes while running:
 
 ```bash
 make run WATCH=1
-make run-auto WATCH=1 BUILD=1
 ```
 
-## Admin SPA Serving
+## Configuration
 
-The backend serves the built Vue admin SPA from `server/web/static/admin`.
+Config precedence: runtime flags > environment variables > YAML file > defaults.
 
-- Build assets:
+Key environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AUTHPILOT_HTTP_ADDR` | `:8025` | Web UI and API address |
+| `AUTHPILOT_PROTOCOL_ADDR` | `:8026` | OIDC protocol address |
+| `AUTHPILOT_OIDC_ISSUER_URL` | `http://localhost:8026` | Issuer URL in tokens and discovery |
+| `AUTHPILOT_PERSISTENCE_ENABLED` | `false` | Enable SQLite persistence for users/groups |
+| `AUTHPILOT_SQLITE_PATH` | `./data/authpilot.db` | SQLite database path |
+| `AUTHPILOT_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, or `error` |
+
+Enable persistence:
+
+```bash
+go run ./server/cmd/authpilot -persistence-enabled=true -sqlite-path ./data/authpilot.db
+```
+
+## OIDC Endpoints
+
+Served on `:8026`.
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/.well-known/openid-configuration` | GET | Discovery document |
+| `/.well-known/jwks.json` | GET | Public signing keys |
+| `/authorize` | GET | Start authorization (redirects to `/login`) |
+| `/authorize/complete` | GET | Issue auth code after login completes |
+| `/token` | POST | Exchange code for tokens |
+| `/userinfo` | GET | User profile (Bearer token required) |
+| `/revoke` | POST | Token revocation |
+
+PKCE is required on every authorization request (`S256` or `plain`).
+
+## Management API
+
+Served on `:8025` under `/api/v1`.
+
+| Resource | Endpoints |
+|----------|-----------|
+| Users | `GET/POST /api/v1/users`, `GET/PUT/DELETE /api/v1/users/{id}` |
+| Groups | `GET/POST /api/v1/groups`, `GET/PUT/DELETE /api/v1/groups/{id}` |
+| Flows | `GET/POST /api/v1/flows`, `GET /api/v1/flows/{id}` |
+| Flow actions | `POST /api/v1/flows/{id}/select-user` · `verify-mfa` · `approve` · `deny` |
+
+## Login Simulation
+
+The login UI at `/login` lets you pick any seeded user and walk through a flow without a real password. Set `next_flow` on a user to inject a scenario:
+
+| Scenario | Behaviour |
+|----------|-----------|
+| `normal` | Straight-through login |
+| `mfa_fail` | First MFA attempt fails |
+| `account_locked` | Flow errors immediately |
+| `slow_mfa` | Push approval delayed 10 seconds |
+| `expired_token` | Tokens issued with negative TTL |
+
+## Admin UI
 
 ```bash
 make admin-build
 ```
 
-- Served routes:
-	- `GET /admin` -> SPA `index.html`
-	- `GET /admin/assets/*` -> static JS/CSS assets
-	- `GET /admin/vite.svg` -> static icon asset
-	- `GET /admin/*` -> SPA fallback to `index.html` for deep links
-
-If `/admin` is missing after code changes, rebuild assets with `make admin-build`.
+Then visit `http://localhost:8025/admin`. Re-run after code changes if the page is stale.
 
 ## Folder Structure
 
 ```text
 .
 ├── client/
-│   └── admin-spa/
-│       ├── public/
-│       └── src/
+│   └── admin-spa/        # Vue 3 admin SPA
 ├── server/
-│   ├── cmd/authpilot/
+│   ├── cmd/authpilot/    # Binary entrypoint
 │   ├── internal/
-│   │   ├── config/
-│   │   ├── flow/
-│   │   ├── httpapi/
-│   │   ├── oidc/
-│   │   ├── saml/
-│   │   └── store/
+│   │   ├── app/          # Startup wiring
+│   │   ├── config/       # Config loading
+│   │   ├── domain/       # Core models
+│   │   ├── flow/         # Flow state machine
+│   │   ├── httpapi/      # Web UI and management API handlers
+│   │   ├── oidc/         # OIDC engine
+│   │   └── store/        # Memory and SQLite stores
 │   └── web/
-│       ├── static/
-│       └── templates/
-├── deploy/
-├── scripts/
-├── cmd/
-├── internal/
-└── configs/
+│       ├── static/       # Built SPA assets
+│       └── templates/    # Server-rendered login pages
+├── configs/              # Example YAML configs
+├── deploy/               # Deployment files
+└── scripts/              # Helper scripts
 ```
-
-Notes:
-- `server/` and `client/` are now the active layout.
-- Go backend code lives under `server/cmd` and `server/internal`.
-- Vue admin code lives under `client/admin-spa` and builds to `server/web/static/admin` for embedding/serving.
-- The runtime target remains a single binary that server-renders login pages and serves admin SPA assets.
-
-

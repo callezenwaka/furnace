@@ -18,6 +18,14 @@ type Config struct {
 	LogLevel     string            `yaml:"log_level"`
 	Persistence  PersistenceConfig `yaml:"persistence"`
 	Cleanup      CleanupConfig     `yaml:"cleanup"`
+	OIDC         OIDCConfig        `yaml:"oidc"`
+}
+
+type OIDCConfig struct {
+	IssuerURL       string        `yaml:"issuer_url"`
+	AccessTokenTTL  time.Duration `yaml:"access_token_ttl"`
+	IDTokenTTL      time.Duration `yaml:"id_token_ttl"`
+	RefreshTokenTTL time.Duration `yaml:"refresh_token_ttl"`
 }
 
 type PersistenceConfig struct {
@@ -54,6 +62,12 @@ func Defaults() Config {
 			FlowTTL:    30 * time.Minute,
 			SessionTTL: 12 * time.Hour,
 		},
+		OIDC: OIDCConfig{
+			IssuerURL:       "http://localhost:8026",
+			AccessTokenTTL:  1 * time.Hour,
+			IDTokenTTL:      1 * time.Hour,
+			RefreshTokenTTL: 30 * 24 * time.Hour,
+		},
 	}
 }
 
@@ -89,6 +103,14 @@ type yamlConfig struct {
 	LogLevel     string               `yaml:"log_level"`
 	Persistence  yamlPersistence      `yaml:"persistence"`
 	Cleanup      yamlCleanupDurations `yaml:"cleanup"`
+	OIDC         yamlOIDC             `yaml:"oidc"`
+}
+
+type yamlOIDC struct {
+	IssuerURL       string `yaml:"issuer_url"`
+	AccessTokenTTL  string `yaml:"access_token_ttl"`
+	IDTokenTTL      string `yaml:"id_token_ttl"`
+	RefreshTokenTTL string `yaml:"refresh_token_ttl"`
 }
 
 type yamlPersistence struct {
@@ -152,6 +174,30 @@ func mergeYAML(cfg *Config, from yamlConfig) error {
 		}
 		cfg.Cleanup.SessionTTL = d
 	}
+	if from.OIDC.IssuerURL != "" {
+		cfg.OIDC.IssuerURL = from.OIDC.IssuerURL
+	}
+	if from.OIDC.AccessTokenTTL != "" {
+		d, err := time.ParseDuration(from.OIDC.AccessTokenTTL)
+		if err != nil {
+			return fmt.Errorf("yaml oidc.access_token_ttl: %w", err)
+		}
+		cfg.OIDC.AccessTokenTTL = d
+	}
+	if from.OIDC.IDTokenTTL != "" {
+		d, err := time.ParseDuration(from.OIDC.IDTokenTTL)
+		if err != nil {
+			return fmt.Errorf("yaml oidc.id_token_ttl: %w", err)
+		}
+		cfg.OIDC.IDTokenTTL = d
+	}
+	if from.OIDC.RefreshTokenTTL != "" {
+		d, err := time.ParseDuration(from.OIDC.RefreshTokenTTL)
+		if err != nil {
+			return fmt.Errorf("yaml oidc.refresh_token_ttl: %w", err)
+		}
+		cfg.OIDC.RefreshTokenTTL = d
+	}
 	return nil
 }
 
@@ -195,6 +241,9 @@ func applyEnv(cfg *Config) error {
 			return fmt.Errorf("AUTHPILOT_SESSION_TTL: %w", err)
 		}
 		cfg.Cleanup.SessionTTL = d
+	}
+	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_OIDC_ISSUER_URL")); v != "" {
+		cfg.OIDC.IssuerURL = v
 	}
 
 	return nil
