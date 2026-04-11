@@ -57,6 +57,7 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 		Groups:   groups,
 		Flows:    flows,
 		Sessions: sessions,
+		APIKey:   cfg.APIKey,
 	})
 
 	httpServer := &http.Server{

@@ -19,6 +19,7 @@ type Config struct {
 	Persistence  PersistenceConfig `yaml:"persistence"`
 	Cleanup      CleanupConfig     `yaml:"cleanup"`
 	OIDC         OIDCConfig        `yaml:"oidc"`
+	APIKey       string            `yaml:"api_key"` // empty = local dev mode (no auth)
 }
 
 type OIDCConfig struct {
@@ -244,6 +245,9 @@ func applyEnv(cfg *Config) error {
 	}
 	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_OIDC_ISSUER_URL")); v != "" {
 		cfg.OIDC.IssuerURL = v
+	}
+	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_API_KEY")); v != "" {
+		cfg.APIKey = v
 	}
 
 	return nil

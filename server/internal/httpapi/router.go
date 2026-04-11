@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -16,15 +17,18 @@ import (
 )
 
 type Dependencies struct {
-	Users    store.UserStore
-	Groups   store.GroupStore
-	Flows    store.FlowStore
-	Sessions store.SessionStore
+	Users          store.UserStore
+	Groups         store.GroupStore
+	Flows          store.FlowStore
+	Sessions       store.SessionStore
 	AdminStaticDir string
+	APIKey         string // empty = local dev mode (no auth required)
 }
 
 func NewRouter(dep Dependencies) http.Handler {
 	r := mux.NewRouter()
+	r.Use(requestIDMiddleware)
+
 	registerAdminRoutes(r, dep.AdminStaticDir)
 
 	r.HandleFunc("/health", healthHandler).Methods(http.MethodGet)
@@ -35,6 +39,8 @@ func NewRouter(dep Dependencies) http.Handler {
 	r.HandleFunc("/login/complete", loginCompleteHandler(dep.Flows, dep.Users)).Methods(http.MethodGet)
 
 	api := r.PathPrefix("/api/v1").Subrouter()
+	api.Use(apiKeyMiddleware(dep.APIKey))
+
 	api.HandleFunc("/users", listUsersHandler(dep.Users)).Methods(http.MethodGet)
 	api.HandleFunc("/users", createUserHandler(dep.Users)).Methods(http.MethodPost)
 	api.HandleFunc("/users/{id}", getUserHandler(dep.Users)).Methods(http.MethodGet)
@@ -54,6 +60,9 @@ func NewRouter(dep Dependencies) http.Handler {
 	api.HandleFunc("/flows/{id}/verify-mfa", verifyMFAFlowHandler(dep.Flows, dep.Users)).Methods(http.MethodPost)
 	api.HandleFunc("/flows/{id}/approve", approveFlowHandler(dep.Flows, dep.Users)).Methods(http.MethodPost)
 	api.HandleFunc("/flows/{id}/deny", denyFlowHandler(dep.Flows)).Methods(http.MethodPost)
+
+	api.HandleFunc("/sessions", listSessionsHandler(dep.Sessions)).Methods(http.MethodGet)
+	api.HandleFunc("/notifications", listNotificationsHandler(dep.Flows)).Methods(http.MethodGet)
 
 	return r
 }
@@ -288,17 +297,83 @@ func decodeGroup(w http.ResponseWriter, body io.Reader) (domain.Group, bool) {
 	return group, true
 }
 
+func listSessionsHandler(sessions store.SessionStore) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		result, err := sessions.List()
+		if err != nil {
+			writeAPIError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to list sessions", false)
+			return
+		}
+		writeJSON(w, http.StatusOK, result)
+	}
+}
+
+func listNotificationsHandler(flows store.FlowStore) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		flowID := strings.TrimSpace(r.URL.Query().Get("flow_id"))
+		if flowID == "" {
+			writeAPIError(w, r, http.StatusBadRequest, "INVALID_REQUEST", "flow_id query parameter is required", false)
+			return
+		}
+		flow, err := flows.GetByID(flowID)
+		if err != nil {
+			if errors.Is(err, store.ErrNotFound) {
+				writeAPIError(w, r, http.StatusNotFound, "FLOW_NOT_FOUND", "flow not found", false)
+				return
+			}
+			writeAPIError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error(), false)
+			return
+		}
+		// Return a notification stub reflecting the current flow state.
+		// M5 will expand this with real TOTP/push/SMS payloads.
+		writeJSON(w, http.StatusOK, map[string]any{
+			"flow_id": flow.ID,
+			"state":   flow.State,
+			"type":    notificationTypeForFlow(flow),
+		})
+	}
+}
+
+func notificationTypeForFlow(flow domain.Flow) string {
+	switch flow.State {
+	case "mfa_pending":
+		return "mfa_challenge"
+	case "mfa_approved":
+		return "mfa_approved"
+	case "mfa_denied":
+		return "mfa_denied"
+	default:
+		return "none"
+	}
+}
+
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
 }
 
+// writeAPIError writes the standard spec error envelope.
+func writeAPIError(w http.ResponseWriter, r *http.Request, status int, code, message string, retryable bool) {
+	body := map[string]any{
+		"error": map[string]any{
+			"code":      code,
+			"message":   message,
+			"retryable": retryable,
+		},
+		"request_id": getRequestID(r),
+	}
+	writeJSON(w, status, body)
+}
+
+// writeError is kept for internal callers that don't have an *http.Request handy
+// (login page handlers). It omits request_id.
 func writeError(w http.ResponseWriter, status int, code string, message string) {
 	writeJSON(w, status, map[string]any{
-		"error": map[string]string{
-			"code":    code,
-			"message": message,
+		"error": map[string]any{
+			"code":      code,
+			"message":   message,
+			"retryable": false,
 		},
 	})
 }

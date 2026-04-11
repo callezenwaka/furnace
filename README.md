@@ -62,8 +62,6 @@ make run WATCH=1
 
 Config precedence: runtime flags > environment variables > YAML file > defaults.
 
-Key environment variables:
-
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `AUTHPILOT_HTTP_ADDR` | `:8025` | Web UI and API address |
@@ -72,6 +70,7 @@ Key environment variables:
 | `AUTHPILOT_PERSISTENCE_ENABLED` | `false` | Enable SQLite persistence for users/groups |
 | `AUTHPILOT_SQLITE_PATH` | `./data/authpilot.db` | SQLite database path |
 | `AUTHPILOT_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, or `error` |
+| `AUTHPILOT_API_KEY` | _(unset)_ | Protect `/api/v1` with a static key (see below) |
 
 Enable persistence:
 
@@ -97,7 +96,7 @@ PKCE is required on every authorization request (`S256` or `plain`).
 
 ## Management API
 
-Served on `:8025` under `/api/v1`.
+Served on `:8025` under `/api/v1`. Every response includes an `X-Request-ID` header for log correlation.
 
 | Resource | Endpoints |
 |----------|-----------|
@@ -105,6 +104,37 @@ Served on `:8025` under `/api/v1`.
 | Groups | `GET/POST /api/v1/groups`, `GET/PUT/DELETE /api/v1/groups/{id}` |
 | Flows | `GET/POST /api/v1/flows`, `GET /api/v1/flows/{id}` |
 | Flow actions | `POST /api/v1/flows/{id}/select-user` · `verify-mfa` · `approve` · `deny` |
+| Sessions | `GET /api/v1/sessions` |
+| Notifications | `GET /api/v1/notifications?flow_id=<id>` |
+
+Errors follow a standard envelope:
+
+```json
+{
+  "error": {
+    "code": "FLOW_NOT_FOUND",
+    "message": "flow not found",
+    "retryable": false
+  },
+  "request_id": "req_01abc..."
+}
+```
+
+### Protected mode
+
+By default the management API is open (local dev). To require authentication, set `AUTHPILOT_API_KEY`:
+
+```bash
+AUTHPILOT_API_KEY=mysecret go run ./server/cmd/authpilot
+```
+
+Then pass the key on every request:
+
+```bash
+curl -H "X-Authpilot-Api-Key: mysecret" http://localhost:8025/api/v1/users
+# or
+curl -H "Authorization: Bearer mysecret" http://localhost:8025/api/v1/users
+```
 
 ## Login Simulation
 
@@ -125,6 +155,12 @@ make admin-build
 ```
 
 Then visit `http://localhost:8025/admin`. Re-run after code changes if the page is stale.
+
+**Views available:**
+- **Dashboard** — user/group/flow/session counts and recent sessions
+- **Users** — list, search, create, edit, delete
+- **Groups** — list, create, edit (including member IDs), delete
+- **Sessions** — list with expandable detail rows
 
 ## Folder Structure
 
