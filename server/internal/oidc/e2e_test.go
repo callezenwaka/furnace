@@ -215,16 +215,15 @@ func TestE2E_OIDCClientLibrary(t *testing.T) {
 	}
 
 	// ── Step 7: refresh using the stored refresh token ────────────────────────
-	// Build a TokenSource backed by our token (which carries the refresh_token).
-	ts := oauthCfg.TokenSource(ctx, tokenResp)
-	// Force a refresh by using a token that has expired.
+	// Use an already-expired token so the library is forced to call /token
+	// with grant_type=refresh_token immediately.
 	expiredToken := &oauth2.Token{
 		AccessToken:  tokenResp.AccessToken,
 		TokenType:    "Bearer",
 		RefreshToken: tokenResp.RefreshToken,
-		Expiry:       time.Now().Add(-1 * time.Second), // already expired
+		Expiry:       time.Now().Add(-1 * time.Second),
 	}
-	ts = oauthCfg.TokenSource(ctx, expiredToken)
+	ts := oauthCfg.TokenSource(ctx, expiredToken)
 	newToken, err := ts.Token()
 	if err != nil {
 		t.Fatalf("TokenSource.Token (refresh): %v", err)
