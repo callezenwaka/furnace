@@ -74,7 +74,14 @@ var mfaTemplate = template.Must(template.New("mfa").Parse(`<!doctype html>
   <p class="sub">{{.User.DisplayName}} ({{.User.Email}})</p>
   {{if .HasError}}<p class="err">{{.Error}}</p>{{end}}
 
-  {{if eq .User.MFAMethod "push"}}
+  {{if eq .Flow.State "webauthn_pending"}}
+    <p>Authenticate with your passkey or security key.</p>
+    <p class="waiting">Challenge: <code>{{.Flow.WebAuthnChallenge}}</code></p>
+    <form method="post" action="/api/v1/flows/{{.FlowID}}/webauthn-response">
+      <button type="submit">Authenticate (Simulate)</button>
+    </form>
+    <a class="hub-link" href="/notify" target="_blank">→ Open passkey hub</a>
+  {{else if eq .User.MFAMethod "push"}}
     <div class="spinner"></div>
     <p class="waiting">Waiting for push approval on your device…</p>
     <a class="hub-link" href="/notify" target="_blank">→ Open approval screen</a>
@@ -307,7 +314,7 @@ func loginSelectUserHandler(flows store.FlowStore, users store.UserStore) http.H
 			return
 		}
 		switch updated.State {
-		case string(flowengine.StateMFAPending), string(flowengine.StateMFAApproved):
+		case string(flowengine.StateMFAPending), string(flowengine.StateWebAuthnPending), string(flowengine.StateMFAApproved):
 			http.Redirect(w, r, "/login/mfa?flow_id="+flowID, http.StatusFound)
 		default:
 			http.Redirect(w, r, "/login/complete?flow_id="+flowID, http.StatusFound)
@@ -429,10 +436,14 @@ func applySelectUser(flows store.FlowStore, users store.UserStore, flowID, userI
 	}
 
 	if flowengine.RequiresMFA(user.MFAMethod) {
-		if !flowengine.CanTransition(flowengine.State(flow.State), flowengine.StateMFAPending) {
+		nextState := flowengine.StateMFAPending
+		if flowengine.IsWebAuthn(user.MFAMethod) {
+			nextState = flowengine.StateWebAuthnPending
+		}
+		if !flowengine.CanTransition(flowengine.State(flow.State), nextState) {
 			return domain.Flow{}, http.StatusConflict, "STATE_TRANSITION_INVALID", "invalid flow transition"
 		}
-		flow.State = string(flowengine.StateMFAPending)
+		flow.State = string(nextState)
 		updated, err := flows.Update(flow)
 		if err != nil {
 			return domain.Flow{}, http.StatusInternalServerError, "update_flow_failed", err.Error()
@@ -498,6 +509,38 @@ func applyVerifyMFA(flows store.FlowStore, users store.UserStore, flowID, code, 
 		_, _ = users.Update(user)
 	}
 	return updated, 0, "", ""
+}
+
+func webauthnResponseHandler(flows store.FlowStore, users store.UserStore) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		flowID := mux.Vars(r)["id"]
+		flow, err := flows.GetByID(flowID)
+		if err != nil {
+			writeError(w, http.StatusNotFound, "not_found", "flow not found")
+			return
+		}
+		if flow.State != string(flowengine.StateWebAuthnPending) {
+			writeError(w, http.StatusConflict, "STATE_TRANSITION_INVALID", "flow is not awaiting WebAuthn response")
+			return
+		}
+		if !flowengine.CanTransition(flowengine.StateWebAuthnPending, flowengine.StateMFAApproved) {
+			writeError(w, http.StatusConflict, "STATE_TRANSITION_INVALID", "invalid flow transition")
+			return
+		}
+		flow.State = string(flowengine.StateMFAApproved)
+		updated, err := flows.Update(flow)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "update_flow_failed", err.Error())
+			return
+		}
+		if user, err := users.GetByID(updated.UserID); err == nil {
+			if flowengine.NormalizeScenario(updated.Scenario) != flowengine.ScenarioNormal {
+				user.NextFlow = string(flowengine.ScenarioNormal)
+				_, _ = users.Update(user)
+			}
+		}
+		writeJSON(w, http.StatusOK, updated)
+	}
 }
 
 func approveOrDenyFlow(flows store.FlowStore, users store.UserStore, flowID string, approve bool, expectedState string) (domain.Flow, int, string, string) {

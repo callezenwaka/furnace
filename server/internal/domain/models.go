@@ -47,10 +47,11 @@ type Flow struct {
 	AuthCode      string   `json:"-"` // not exposed; redeemed once at /token
 
 	// Notification fields — ephemeral, populated when MFA is pending
-	TOTPSecret      string `json:"-"`              // base32 TOTP secret for this flow
-	SMSCode         string `json:"-"`              // 6-digit code for SMS method
-	MagicLinkToken  string `json:"-"`              // opaque token for magic link
-	MagicLinkUsed   bool   `json:"magic_link_used,omitempty"`
+	TOTPSecret        string `json:"-"`                           // base32 TOTP secret for this flow
+	SMSCode           string `json:"-"`                           // 6-digit code for SMS method
+	MagicLinkToken    string `json:"-"`                           // opaque token for magic link
+	MagicLinkUsed     bool   `json:"magic_link_used,omitempty"`
+	WebAuthnChallenge string `json:"webauthn_challenge,omitempty"` // base64url challenge for WebAuthn simulation
 }
 
 type SessionEvent struct {

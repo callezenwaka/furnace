@@ -5,6 +5,7 @@ package notify
 import (
 	"crypto/rand"
 	"encoding/base32"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"math/big"
@@ -18,7 +19,7 @@ import (
 // Payload is returned by the notifications endpoint for a given flow.
 type Payload struct {
 	FlowID    string `json:"flow_id"`
-	Type      string `json:"type"` // "totp" | "push" | "sms" | "magic_link" | "none"
+	Type      string `json:"type"` // "totp" | "push" | "sms" | "magic_link" | "webauthn" | "none"
 	UserID    string `json:"user_id,omitempty"`
 	UserEmail string `json:"user_email,omitempty"`
 
@@ -36,6 +37,10 @@ type Payload struct {
 	// Magic link
 	MagicLinkURL  string `json:"magic_link_url,omitempty"`
 	MagicLinkUsed bool   `json:"magic_link_used,omitempty"`
+
+	// WebAuthn / Passkey (simulation)
+	WebAuthnChallenge    string `json:"webauthn_challenge,omitempty"`    // base64url-encoded challenge
+	WebAuthnCredentialID string `json:"webauthn_credential_id,omitempty"` // stub credential ID
 }
 
 // EnsureSecrets populates the notification secrets on a flow if they are not
@@ -65,7 +70,7 @@ func GenerateFor(flow domain.Flow, user domain.User, baseURL string) (Payload, d
 		UserEmail: user.Email,
 	}
 
-	if flow.State != "mfa_pending" {
+	if flow.State != "mfa_pending" && flow.State != "webauthn_pending" {
 		p.Type = "none"
 		return p, flow, nil
 	}
@@ -115,6 +120,18 @@ func GenerateFor(flow domain.Flow, user domain.User, baseURL string) (Payload, d
 		p.MagicLinkURL = baseURL + "/login/magic?token=" + flow.MagicLinkToken
 		p.MagicLinkUsed = flow.MagicLinkUsed
 
+	case "webauthn":
+		p.Type = "webauthn"
+		if flow.WebAuthnChallenge == "" {
+			challenge, err := generateWebAuthnChallenge()
+			if err != nil {
+				return Payload{}, flow, fmt.Errorf("generate webauthn challenge: %w", err)
+			}
+			flow.WebAuthnChallenge = challenge
+		}
+		p.WebAuthnChallenge = flow.WebAuthnChallenge
+		p.WebAuthnCredentialID = "authpilot-sim-" + flow.UserID
+
 	default:
 		p.Type = "none"
 	}
@@ -159,6 +176,14 @@ func generateToken(byteLen int) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(b), nil
+}
+
+func generateWebAuthnChallenge() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
 func maskPhone(phone string) string {

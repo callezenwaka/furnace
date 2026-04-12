@@ -111,6 +111,7 @@ func NewRouter(dep Dependencies) http.Handler {
 	api.HandleFunc("/flows/{id}/verify-mfa", verifyMFAFlowHandler(dep.Flows, dep.Users)).Methods(http.MethodPost)
 	api.HandleFunc("/flows/{id}/approve", approveFlowHandler(dep.Flows, dep.Users)).Methods(http.MethodPost)
 	api.HandleFunc("/flows/{id}/deny", denyFlowHandler(dep.Flows)).Methods(http.MethodPost)
+	api.HandleFunc("/flows/{id}/webauthn-response", webauthnResponseHandler(dep.Flows, dep.Users)).Methods(http.MethodPost)
 
 	api.HandleFunc("/sessions", listSessionsHandler(dep.Sessions)).Methods(http.MethodGet)
 	api.HandleFunc("/notifications", listNotificationsHandler(dep.Flows, dep.Users, dep.BaseURL)).Methods(http.MethodGet)
@@ -492,14 +493,15 @@ func listNotificationsHandler(flows store.FlowStore, users store.UserStore, base
 		}
 		if updatedFlow.TOTPSecret != flow.TOTPSecret ||
 			updatedFlow.SMSCode != flow.SMSCode ||
-			updatedFlow.MagicLinkToken != flow.MagicLinkToken {
+			updatedFlow.MagicLinkToken != flow.MagicLinkToken ||
+			updatedFlow.WebAuthnChallenge != flow.WebAuthnChallenge {
 			_, _ = flows.Update(updatedFlow)
 		}
 		writeJSON(w, http.StatusOK, payload)
 	}
 }
 
-// listAllNotificationsHandler returns payloads for all flows currently in mfa_pending.
+// listAllNotificationsHandler returns payloads for all flows currently in mfa_pending or webauthn_pending.
 // Used by the /notify hub to show all pending approvals across users.
 func listAllNotificationsHandler(flows store.FlowStore, users store.UserStore, baseURL string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -510,7 +512,7 @@ func listAllNotificationsHandler(flows store.FlowStore, users store.UserStore, b
 		}
 		var payloads []notify.Payload
 		for _, flow := range all {
-			if flow.State != "mfa_pending" {
+			if flow.State != "mfa_pending" && flow.State != "webauthn_pending" {
 				continue
 			}
 			user, _ := users.GetByID(flow.UserID)
@@ -520,7 +522,8 @@ func listAllNotificationsHandler(flows store.FlowStore, users store.UserStore, b
 			}
 			if updatedFlow.TOTPSecret != flow.TOTPSecret ||
 				updatedFlow.SMSCode != flow.SMSCode ||
-				updatedFlow.MagicLinkToken != flow.MagicLinkToken {
+				updatedFlow.MagicLinkToken != flow.MagicLinkToken ||
+				updatedFlow.WebAuthnChallenge != flow.WebAuthnChallenge {
 				_, _ = flows.Update(updatedFlow)
 			}
 			payloads = append(payloads, payload)

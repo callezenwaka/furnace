@@ -88,7 +88,7 @@ func components() map[string]any {
 				"properties": map[string]any{
 					"id":           map[string]any{"type": "string"},
 					"user_id":      map[string]any{"type": "string"},
-					"state":        map[string]any{"type": "string", "enum": []string{"initiated", "user_picked", "mfa_pending", "mfa_approved", "mfa_denied", "complete", "error"}},
+					"state":        map[string]any{"type": "string", "enum": []string{"initiated", "user_picked", "mfa_pending", "webauthn_pending", "mfa_approved", "mfa_denied", "complete", "error"}},
 					"scenario":     map[string]any{"type": "string"},
 					"protocol":     map[string]any{"type": "string", "enum": []string{"direct", "oidc", "saml", "wsfed"}},
 					"client_id":    map[string]any{"type": "string"},
