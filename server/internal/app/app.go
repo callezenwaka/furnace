@@ -12,9 +12,11 @@ import (
 	"authpilot/server/internal/httpapi"
 	oidcengine "authpilot/server/internal/oidc"
 	samlengine "authpilot/server/internal/saml"
+	"authpilot/server/internal/scim"
 	"authpilot/server/internal/store"
 	"authpilot/server/internal/store/memory"
 	sqliteStore "authpilot/server/internal/store/sqlite"
+	wsfedengine "authpilot/server/internal/wsfed"
 )
 
 type App struct {
@@ -54,14 +56,19 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 	sessions := memory.NewSessionStore()
 
 	httpBaseURL := "http://localhost" + cfg.HTTPAddr
+	scimRouter := scim.NewRouter(scim.RouterDeps{
+		Users:  users,
+		Groups: groups,
+	})
 	router := httpapi.NewRouter(httpapi.Dependencies{
-		Users:     users,
-		Groups:    groups,
-		Flows:     flows,
-		Sessions:  sessions,
-		APIKey:    cfg.APIKey,
-		BaseURL:   httpBaseURL,
-		RateLimit: cfg.RateLimit,
+		Users:      users,
+		Groups:     groups,
+		Flows:      flows,
+		Sessions:   sessions,
+		APIKey:     cfg.APIKey,
+		BaseURL:    httpBaseURL,
+		RateLimit:  cfg.RateLimit,
+		SCIMRouter: scimRouter,
 	})
 
 	httpServer := &http.Server{
@@ -112,9 +119,21 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 		SessionTTL: 1 * time.Hour,
 	})
 
-	// Combine OIDC and SAML on the protocol server using a path-based dispatcher.
+	wsfedRouter := wsfedengine.NewRouter(wsfedengine.RouterDeps{
+		Users:      users,
+		Sessions:   sessions,
+		CertMgr:    samlCertMgr,
+		EntityID:   samlEntityID,
+		IssuerURL:  protocolBase + "/wsfed",
+		LoginURL:   loginURL,
+		SessionTTL: 1 * time.Hour,
+	})
+
+	// Combine OIDC, SAML, and WS-Fed on the protocol server using path-based dispatch.
 	protocolMux := http.NewServeMux()
 	protocolMux.Handle("/saml/", samlRouter)
+	protocolMux.Handle("/wsfed", wsfedRouter)
+	protocolMux.Handle("/federationmetadata/", wsfedRouter)
 	protocolMux.Handle("/", oidcRouter)
 
 	protocolServer := &http.Server{

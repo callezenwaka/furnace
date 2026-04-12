@@ -29,6 +29,7 @@ pnpm-debug.log*
 # Local runtime data
 /data/
 *.db
+/.tmp/
 
 roadmap-v1.md
 spec-v1.md

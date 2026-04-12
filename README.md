@@ -125,6 +125,38 @@ To trigger IdP-initiated logout for a user:
 curl http://localhost:8026/saml/slo?user_id=<user-id>
 ```
 
+## SCIM 2.0 Endpoints
+
+Served on `:8025` under `/scim/v2`. Backed by the same user and group stores as the management API. Obeys the same API key protection when `AUTHPILOT_API_KEY` is set.
+
+| Endpoint | Methods | Description |
+|----------|---------|-------------|
+| `/scim/v2/ServiceProviderConfig` | GET | Server capabilities |
+| `/scim/v2/Schemas` | GET | All schema definitions |
+| `/scim/v2/Schemas/{id}` | GET | Single schema by URN |
+| `/scim/v2/Users` | GET, POST | List (with `filter=`) / create users |
+| `/scim/v2/Users/{id}` | GET, PUT, PATCH, DELETE | Read / replace / patch / delete a user |
+| `/scim/v2/Groups` | GET, POST | List / create groups |
+| `/scim/v2/Groups/{id}` | GET, PUT, PATCH, DELETE | Read / replace / patch / delete a group |
+
+PATCH supports `add`, `replace`, and `remove` operations on members. Filter supports `userName eq "..."` and `displayName eq "..."` on the Users collection.
+
+## WS-Federation Endpoints
+
+Served on `:8026` alongside OIDC and SAML. Implements the WS-Federation Passive Requestor Profile for legacy Azure AD / ADFS integrations. Reuses the SAML signing certificate.
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/wsfed` | GET, POST | Passive requestor endpoint (`wa=wsignin1.0` / `wsignout1.0`) |
+| `/federationmetadata/2007-06/federationmetadata.xml` | GET | Federation metadata XML |
+
+Configure your relying party with:
+- **Passive Requestor Endpoint:** `http://localhost:8026/wsfed`
+- **Federation Metadata URL:** `http://localhost:8026/federationmetadata/2007-06/federationmetadata.xml`
+- **Token type:** SAML 1.1 (signed with RSA-SHA256, exc-c14n)
+
+The sign-in flow redirects to `/login`, completes the Authpilot flow, then posts a signed WS-Trust `RequestSecurityTokenResponse` back to the relying party's reply URL. Sign-out (`wa=wsignout1.0`) invalidates all sessions and redirects to `wreply` if provided.
+
 ## Management API
 
 Served on `:8025` under `/api/v1`. Every response includes an `X-Request-ID` header for log correlation.
@@ -293,6 +325,8 @@ The hub polls `/api/v1/notifications/all` every 3 seconds.
 │   │   ├── notify/       # MFA notification payload generation
 │   │   ├── oidc/         # OIDC engine
 │   │   ├── saml/         # SAML 2.0 engine
+│   │   ├── scim/         # SCIM 2.0 provisioning engine
+│   │   ├── wsfed/        # WS-Federation passive requestor engine
 │   │   └── store/        # Memory and SQLite stores
 │   └── web/
 │       ├── static/       # Built SPA assets

@@ -25,9 +25,10 @@ type Dependencies struct {
 	Sessions        store.SessionStore
 	AdminStaticDir  string
 	NotifyStaticDir string
-	APIKey          string // empty = local dev mode (no auth required)
-	BaseURL         string // e.g. "http://localhost:8025" — used for magic link URLs
-	RateLimit       int    // requests per minute per IP; 0 = disabled
+	APIKey          string       // empty = local dev mode (no auth required)
+	BaseURL         string       // e.g. "http://localhost:8025" — used for magic link URLs
+	RateLimit       int          // requests per minute per IP; 0 = disabled
+	SCIMRouter      http.Handler // mounted at /scim/v2; nil = disabled
 }
 
 func NewRouter(dep Dependencies) http.Handler {
@@ -85,6 +86,13 @@ func NewRouter(dep Dependencies) http.Handler {
 	api.HandleFunc("/notifications/all", listAllNotificationsHandler(dep.Flows, dep.Users, dep.BaseURL)).Methods(http.MethodGet)
 
 	api.HandleFunc("/export", exportHandler(dep.Users, dep.Groups)).Methods(http.MethodGet)
+
+	// Mount SCIM 2.0 under /scim/v2 (outside /api/v1, shares API key middleware).
+	if dep.SCIMRouter != nil {
+		scim := r.PathPrefix("/scim/v2").Subrouter()
+		scim.Use(apiKeyMiddleware(dep.APIKey))
+		scim.PathPrefix("").Handler(dep.SCIMRouter)
+	}
 
 	return r
 }
