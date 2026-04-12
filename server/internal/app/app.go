@@ -66,6 +66,7 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 		Flows:      flows,
 		Sessions:   sessions,
 		APIKey:     cfg.APIKey,
+		SCIMKey:    cfg.SCIMKey,
 		BaseURL:    httpBaseURL,
 		RateLimit:  cfg.RateLimit,
 		SCIMRouter: scimRouter,

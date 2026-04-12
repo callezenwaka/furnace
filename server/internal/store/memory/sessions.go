@@ -35,6 +35,17 @@ func (s *SessionStore) GetByID(id string) (domain.Session, error) {
 	return session, nil
 }
 
+func (s *SessionStore) GetByRefreshToken(token string) (domain.Session, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, session := range s.sessions {
+		if session.RefreshToken == token {
+			return session, nil
+		}
+	}
+	return domain.Session{}, store.ErrNotFound
+}
+
 func (s *SessionStore) List() ([]domain.Session, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

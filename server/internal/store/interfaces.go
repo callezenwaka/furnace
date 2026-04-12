@@ -37,6 +37,7 @@ type FlowStore interface {
 type SessionStore interface {
 	Create(session domain.Session) (domain.Session, error)
 	GetByID(id string) (domain.Session, error)
+	GetByRefreshToken(token string) (domain.Session, error)
 	List() ([]domain.Session, error)
 	Update(session domain.Session) (domain.Session, error)
 	Delete(id string) error

@@ -475,4 +475,88 @@ func TestFullOIDCFlow(t *testing.T) {
 	if resp4.StatusCode != http.StatusBadRequest {
 		t.Errorf("expected 400 on code replay, got %d", resp4.StatusCode)
 	}
+
+	// Step 5: refresh grant returns new tokens and rotates the refresh token.
+	refreshForm := url.Values{}
+	refreshForm.Set("grant_type", "refresh_token")
+	refreshForm.Set("refresh_token", tokens.RefreshToken)
+
+	resp5, err := http.PostForm(srv.URL+"/token", refreshForm)
+	if err != nil {
+		t.Fatalf("POST token (refresh): %v", err)
+	}
+	defer resp5.Body.Close()
+	if resp5.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 from refresh grant, got %d", resp5.StatusCode)
+	}
+	var tokens2 oidc.TokenSet
+	if err := json.NewDecoder(resp5.Body).Decode(&tokens2); err != nil {
+		t.Fatalf("decode refresh response: %v", err)
+	}
+	if tokens2.AccessToken == "" {
+		t.Error("expected non-empty access_token after refresh")
+	}
+	if tokens2.RefreshToken == "" {
+		t.Error("expected non-empty refresh_token after refresh (rotation)")
+	}
+	if tokens2.RefreshToken == tokens.RefreshToken {
+		t.Error("refresh token should be rotated (old == new)")
+	}
+
+	// Step 6: old refresh token must now be rejected.
+	resp6, err := http.PostForm(srv.URL+"/token", refreshForm)
+	if err != nil {
+		t.Fatalf("POST token (old refresh token): %v", err)
+	}
+	defer resp6.Body.Close()
+	if resp6.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected 400 on replayed refresh token, got %d", resp6.StatusCode)
+	}
+}
+
+func TestRefreshGrant_MissingToken(t *testing.T) {
+	dep := newTestDeps(t)
+	srv := httptest.NewServer(oidc.NewRouter(dep))
+	defer srv.Close()
+
+	form := url.Values{}
+	form.Set("grant_type", "refresh_token")
+
+	resp, err := http.PostForm(srv.URL+"/token", form)
+	if err != nil {
+		t.Fatalf("POST token: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", resp.StatusCode)
+	}
+	var body map[string]string
+	_ = json.NewDecoder(resp.Body).Decode(&body)
+	if body["error"] != "invalid_request" {
+		t.Errorf("expected invalid_request, got %q", body["error"])
+	}
+}
+
+func TestRefreshGrant_UnknownToken(t *testing.T) {
+	dep := newTestDeps(t)
+	srv := httptest.NewServer(oidc.NewRouter(dep))
+	defer srv.Close()
+
+	form := url.Values{}
+	form.Set("grant_type", "refresh_token")
+	form.Set("refresh_token", "doesnotexist")
+
+	resp, err := http.PostForm(srv.URL+"/token", form)
+	if err != nil {
+		t.Fatalf("POST token: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", resp.StatusCode)
+	}
+	var body map[string]string
+	_ = json.NewDecoder(resp.Body).Decode(&body)
+	if body["error"] != "invalid_grant" {
+		t.Errorf("expected invalid_grant, got %q", body["error"])
+	}
 }

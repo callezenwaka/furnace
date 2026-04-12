@@ -52,9 +52,10 @@ type Flow struct {
 }
 
 type Session struct {
-	ID        string    `json:"id"`
-	UserID    string    `json:"user_id"`
-	FlowID    string    `json:"flow_id"`
-	CreatedAt time.Time `json:"created_at"`
-	ExpiresAt time.Time `json:"expires_at"`
+	ID           string    `json:"id"`
+	UserID       string    `json:"user_id"`
+	FlowID       string    `json:"flow_id"`
+	RefreshToken string    `json:"-"` // opaque; not exposed in API responses
+	CreatedAt    time.Time `json:"created_at"`
+	ExpiresAt    time.Time `json:"expires_at"`
 }

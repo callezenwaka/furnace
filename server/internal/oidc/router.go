@@ -289,14 +289,15 @@ func handleAuthCodeGrant(w http.ResponseWriter, r *http.Request, dep RouterDeps)
 	matched.AuthCode = ""
 	_, _ = dep.Flows.Update(*matched)
 
-	// Create a session record.
+	// Create a session record, binding the refresh token to it.
 	now := time.Now().UTC()
 	session := domain.Session{
-		ID:        fmt.Sprintf("sess_%d", now.UnixNano()),
-		UserID:    matched.UserID,
-		FlowID:    matched.ID,
-		CreatedAt: now,
-		ExpiresAt: now.Add(dep.Issuer.cfg.RefreshTokenTTL),
+		ID:           fmt.Sprintf("sess_%d", now.UnixNano()),
+		UserID:       matched.UserID,
+		FlowID:       matched.ID,
+		RefreshToken: tokens.RefreshToken,
+		CreatedAt:    now,
+		ExpiresAt:    now.Add(dep.Issuer.cfg.RefreshTokenTTL),
 	}
 	_, _ = dep.Sessions.Create(session)
 
@@ -306,9 +307,48 @@ func handleAuthCodeGrant(w http.ResponseWriter, r *http.Request, dep RouterDeps)
 }
 
 func handleRefreshGrant(w http.ResponseWriter, r *http.Request, dep RouterDeps) {
-	// Refresh tokens are opaque; we don't store them in M3.
-	// Return invalid_grant — clients should restart the flow.
-	writeOAuthError(w, http.StatusBadRequest, "invalid_grant", "refresh tokens are not persisted in this build; restart the authorization flow")
+	incomingToken := strings.TrimSpace(r.FormValue("refresh_token"))
+	if incomingToken == "" {
+		writeOAuthError(w, http.StatusBadRequest, "invalid_request", "refresh_token is required")
+		return
+	}
+
+	session, err := dep.Sessions.GetByRefreshToken(incomingToken)
+	if err != nil {
+		writeOAuthError(w, http.StatusBadRequest, "invalid_grant", "refresh token not found or already rotated")
+		return
+	}
+	if time.Now().UTC().After(session.ExpiresAt) {
+		_ = dep.Sessions.Delete(session.ID)
+		writeOAuthError(w, http.StatusBadRequest, "invalid_grant", "refresh token expired")
+		return
+	}
+
+	user, err := dep.Users.GetByID(session.UserID)
+	if err != nil {
+		writeOAuthError(w, http.StatusInternalServerError, "server_error", "user not found")
+		return
+	}
+
+	// Build a synthetic flow for token issuance (no PKCE, no auth code needed).
+	flow := domain.Flow{
+		UserID:   session.UserID,
+		ClientID: "", // refresh grants don't carry client_id in this dev context
+	}
+	tokens, err := dep.Issuer.Issue(flow, user)
+	if err != nil {
+		writeOAuthError(w, http.StatusInternalServerError, "server_error", "token issuance failed")
+		return
+	}
+
+	// Rotate: replace the old refresh token on the session.
+	session.RefreshToken = tokens.RefreshToken
+	session.ExpiresAt = time.Now().UTC().Add(dep.Issuer.cfg.RefreshTokenTTL)
+	_, _ = dep.Sessions.Update(session)
+
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
+	writeJSON(w, http.StatusOK, tokens)
 }
 
 // ---------------------------------------------------------------------------

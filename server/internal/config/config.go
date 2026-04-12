@@ -21,6 +21,7 @@ type Config struct {
 	OIDC         OIDCConfig        `yaml:"oidc"`
 	SAML         SAMLConfig        `yaml:"saml"`
 	APIKey       string            `yaml:"api_key"`       // empty = local dev mode (no auth)
+	SCIMKey      string            `yaml:"scim_key"`      // separate credential for /scim/v2; falls back to APIKey when empty
 	RateLimit    int               `yaml:"rate_limit"`    // requests/min per IP on /api/v1; 0 = disabled
 }
 
@@ -262,6 +263,9 @@ func applyEnv(cfg *Config) error {
 	}
 	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_API_KEY")); v != "" {
 		cfg.APIKey = v
+	}
+	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_SCIM_KEY")); v != "" {
+		cfg.SCIMKey = v
 	}
 	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_RATE_LIMIT")); v != "" {
 		n, err := strconv.Atoi(v)

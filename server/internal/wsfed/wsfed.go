@@ -4,6 +4,18 @@
 // Endpoints:
 //   - GET/POST /wsfed                                       — passive requestor endpoint
 //   - GET /federationmetadata/2007-06/federationmetadata.xml — federation metadata
+//
+// # PKCE / CSRF note
+//
+// The WS-Federation Passive Requestor Profile (OA-WSFED-1.0) has no equivalent
+// of OAuth 2.0 PKCE (RFC 7636). The protocol predates PKCE and relies on the
+// wctx/wtrealm round-trip and a signed assertion posted back to the wreply URL
+// for security. Consumers integrating WS-Fed via Authpilot should be aware that:
+//
+//  1. No code_challenge / code_verifier exchange takes place.
+//  2. CSRF protection is the responsibility of the relying party (e.g. by
+//     verifying the wreply origin and validating the assertion signature).
+//  3. This is consistent with how Azure AD / ADFS implement the same profile.
 package wsfed
 
 import (

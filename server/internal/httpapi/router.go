@@ -26,6 +26,7 @@ type Dependencies struct {
 	AdminStaticDir  string
 	NotifyStaticDir string
 	APIKey          string       // empty = local dev mode (no auth required)
+	SCIMKey         string       // separate credential for /scim/v2; falls back to APIKey when empty
 	BaseURL         string       // e.g. "http://localhost:8025" — used for magic link URLs
 	RateLimit       int          // requests per minute per IP; 0 = disabled
 	SCIMRouter      http.Handler // mounted at /scim/v2; nil = disabled
@@ -87,10 +88,16 @@ func NewRouter(dep Dependencies) http.Handler {
 
 	api.HandleFunc("/export", exportHandler(dep.Users, dep.Groups)).Methods(http.MethodGet)
 
-	// Mount SCIM 2.0 under /scim/v2 (outside /api/v1, shares API key middleware).
+	// Mount SCIM 2.0 under /scim/v2 with its own credential.
+	// SCIMKey takes precedence; falls back to APIKey so existing single-key
+	// deployments continue to work without configuration changes.
 	if dep.SCIMRouter != nil {
+		scimKey := dep.SCIMKey
+		if scimKey == "" {
+			scimKey = dep.APIKey
+		}
 		scim := r.PathPrefix("/scim/v2").Subrouter()
-		scim.Use(apiKeyMiddleware(dep.APIKey))
+		scim.Use(apiKeyMiddleware(scimKey))
 		scim.PathPrefix("").Handler(dep.SCIMRouter)
 	}
 
