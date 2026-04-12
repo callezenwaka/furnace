@@ -89,7 +89,9 @@ func TestHeaderPropagation_NoGroups(t *testing.T) {
 		ID:    "usr_nogroup",
 		Email: "nogroup@example.com",
 	}
-	dep.Users.Create(u)
+	if _, err := dep.Users.Create(u); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
 	token, _ := dep.Issuer.MintForUser(u, "c", nil, 0)
 
 	router := NewRouter(dep)
