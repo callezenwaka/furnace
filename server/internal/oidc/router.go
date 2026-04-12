@@ -37,6 +37,7 @@ func NewRouter(dep RouterDeps) http.Handler {
 	r.HandleFunc("/token", tokenHandler(dep)).Methods(http.MethodPost)
 	r.HandleFunc("/userinfo", userinfoHandler(dep)).Methods(http.MethodGet, http.MethodPost)
 	r.HandleFunc("/revoke", revokeHandler()).Methods(http.MethodPost)
+	r.HandleFunc("/oauth2/introspect", introspectHandler(dep)).Methods(http.MethodPost)
 
 	return r
 }
@@ -55,6 +56,7 @@ func discoveryHandler(dep RouterDeps) http.HandlerFunc {
 			"userinfo_endpoint":                     base + "/userinfo",
 			"jwks_uri":                              base + "/.well-known/jwks.json",
 			"revocation_endpoint":                   base + "/revoke",
+			"introspection_endpoint":                base + "/oauth2/introspect",
 			"response_types_supported":              []string{"code"},
 			"subject_types_supported":               []string{"public"},
 			"id_token_signing_alg_values_supported": []string{"RS256"},
@@ -394,6 +396,71 @@ func userinfoHandler(dep RouterDeps) http.HandlerFunc {
 		}
 
 		writeJSON(w, http.StatusOK, claims)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Introspect — RFC 7662
+// ---------------------------------------------------------------------------
+
+// introspectHandler implements POST /oauth2/introspect (RFC 7662).
+// No auth is required — the endpoint is designed for reverse-proxy use cases
+// (e.g. nginx auth_request) that cannot perform local JWT validation.
+// An invalid or expired token returns {"active":false}, not an HTTP error.
+func introspectHandler(dep RouterDeps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			writeOAuthError(w, http.StatusBadRequest, "invalid_request", "cannot parse form")
+			return
+		}
+
+		token := strings.TrimSpace(r.FormValue("token"))
+		if token == "" {
+			writeJSON(w, http.StatusOK, map[string]any{"active": false})
+			return
+		}
+
+		claims, active, err := dep.KeyMgr.VerifyJWT(token)
+		if err != nil {
+			writeOAuthError(w, http.StatusInternalServerError, "server_error", "token verification failed")
+			return
+		}
+		if !active || claims == nil {
+			writeJSON(w, http.StatusOK, map[string]any{"active": false})
+			return
+		}
+
+		// Build the RFC 7662 response from the verified claims.
+		resp := map[string]any{"active": true}
+
+		if sub, _ := claims["sub"].(string); sub != "" {
+			resp["sub"] = sub
+			// Enrich with live user data so the response reflects the current
+			// state of the user record (groups may have changed since issuance).
+			if user, err := dep.Users.GetByID(sub); err == nil {
+				resp["username"] = user.Email
+				resp["email"] = user.Email
+				if len(user.Groups) > 0 {
+					resp["groups"] = user.Groups
+				}
+				for k, v := range user.Claims {
+					if _, exists := resp[k]; !exists {
+						resp[k] = v
+					}
+				}
+			}
+		}
+		if aud, ok := claims["aud"]; ok {
+			resp["client_id"] = aud
+		}
+		if exp, ok := claims["exp"]; ok {
+			resp["exp"] = exp
+		}
+		if scope, ok := claims["scope"].(string); ok && scope != "" {
+			resp["scope"] = scope
+		}
+
+		writeJSON(w, http.StatusOK, resp)
 	}
 }
 
