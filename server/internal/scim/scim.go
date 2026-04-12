@@ -196,7 +196,7 @@ func userToSCIM(u domain.User, groups []domain.Group) scimUser {
 		ID:          u.ID,
 		UserName:    u.Email,
 		DisplayName: u.DisplayName,
-		Active:      true,
+		Active:      u.Active,
 		Emails:      emails,
 		PhoneNums:   phones,
 		Groups:      groupRefs,
@@ -425,15 +425,30 @@ func createUserHandler(users store.UserStore) http.HandlerFunc {
 			writeScimError(w, http.StatusBadRequest, "userName is required", "invalidValue")
 			return
 		}
+		// Enforce userName uniqueness (RFC 7644 §3.3 — server MUST return 409
+		// if the userName is already in use).
+		if existing, _ := users.List(); existing != nil {
+			for _, u := range existing {
+				if u.Email == input.UserName {
+					writeScimError(w, http.StatusConflict, "userName already in use", "uniqueness")
+					return
+				}
+			}
+		}
 		email := primaryEmail(input.Emails)
 		if email == "" {
 			email = input.UserName
+		}
+		active := true
+		if input.Active != nil {
+			active = *input.Active
 		}
 		u := domain.User{
 			ID:          newUserID(),
 			Email:       email,
 			DisplayName: input.DisplayName,
 			PhoneNumber: primaryPhone(input.PhoneNums),
+			Active:      active,
 			CreatedAt:   time.Now().UTC(),
 		}
 		created, err := users.Create(u)
@@ -480,6 +495,9 @@ func replaceUserHandler(users store.UserStore) http.HandlerFunc {
 		existing.Email = email
 		existing.DisplayName = input.DisplayName
 		existing.PhoneNumber = primaryPhone(input.PhoneNums)
+		if input.Active != nil {
+			existing.Active = *input.Active
+		}
 		updated, err := users.Update(existing)
 		if err != nil {
 			writeScimError(w, http.StatusInternalServerError, err.Error(), "")
@@ -536,7 +554,12 @@ func applyUserPatch(u *domain.User, path string, value any) {
 	case "phonenumbers[type eq \"work\"].value", "phonenumbers":
 		u.PhoneNumber = strVal()
 	case "active":
-		// active is not stored on domain.User (all users are active) — ignore
+		switch v := value.(type) {
+		case bool:
+			u.Active = v
+		case string:
+			u.Active = strings.EqualFold(v, "true")
+		}
 	case "":
 		// value is a map of field→value
 		if m, ok := value.(map[string]any); ok {

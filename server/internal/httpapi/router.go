@@ -207,6 +207,10 @@ func createUserHandler(users store.UserStore) http.HandlerFunc {
 		if user.CreatedAt.IsZero() {
 			user.CreatedAt = time.Now().UTC()
 		}
+		// Default to active — callers must explicitly set active=false to deactivate.
+		if !user.Active {
+			user.Active = true
+		}
 		created, err := users.Create(user)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "create_user_failed", err.Error())

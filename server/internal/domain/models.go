@@ -9,6 +9,7 @@ type User struct {
 	Groups      []string       `json:"groups"`
 	MFAMethod   string         `json:"mfa_method"`
 	NextFlow    string         `json:"next_flow"`
+	Active      bool           `json:"active"`
 	Claims      map[string]any `json:"claims,omitempty"`
 	PhoneNumber string         `json:"phone_number,omitempty"`
 	CreatedAt   time.Time      `json:"created_at"`
