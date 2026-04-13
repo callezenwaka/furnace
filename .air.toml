@@ -1,0 +1,23 @@
+root = "."
+tmp_dir = ".tmp"
+
+[build]
+  cmd = "go build -o .tmp/authpilot ./server/cmd/authpilot"
+  bin = ".tmp/authpilot"
+  args_bin = ["-http-addr", ":18025", "-protocol-addr", ":18026"]
+  include_ext = ["go"]
+  include_dir = ["server"]
+  exclude_dir = ["server/web/static"]
+  delay = 500
+
+[log]
+  time = false
+
+[color]
+  build = "yellow"
+  runner = "green"
+  watcher = "cyan"
+  app = ""
+
+[misc]
+  clean_on_exit = true

@@ -1,4 +1,4 @@
-.PHONY: build test lint check-ports run run-auto run-default run-bg stop health admin-build notify-build
+.PHONY: build test lint check-ports run run-auto run-default run-bg stop health admin-build notify-build dev
 
 RUN_HTTP_ADDR ?= :18025
 RUN_PROTOCOL_ADDR ?= :18026
@@ -53,7 +53,7 @@ run: check-ports
 	@echo "Stop: press Ctrl+C"
 	@if [ "$(WATCH)" = "1" ] || [ "$(WATCH)" = "true" ]; then \
 		echo "Starting admin SPA watch build (log: .tmp/admin-watch.log)"; \
-		cd client/admin-spa && npm run build -- --watch > ../../.tmp/admin-watch.log 2>&1 & watcher_pid=$$!; \
+		cd client/admin-spa && npm install && npm run build -- --watch > ../../.tmp/admin-watch.log 2>&1 & watcher_pid=$$!; \
 		trap 'kill $$watcher_pid 2>/dev/null || true' INT TERM EXIT; \
 		go run ./server/cmd/authpilot -http-addr $(RUN_HTTP_ADDR) -protocol-addr $(RUN_PROTOCOL_ADDR); \
 		status=$$?; \
@@ -85,7 +85,7 @@ run-auto:
 	echo "Stop: press Ctrl+C"; \
 	if [ "$(WATCH)" = "1" ] || [ "$(WATCH)" = "true" ]; then \
 		echo "Starting admin SPA watch build (log: .tmp/admin-watch.log)"; \
-		cd client/admin-spa && npm run build -- --watch > ../../.tmp/admin-watch.log 2>&1 & watcher_pid=$$!; \
+		cd client/admin-spa && npm install && npm run build -- --watch > ../../.tmp/admin-watch.log 2>&1 & watcher_pid=$$!; \
 		trap 'kill $$watcher_pid 2>/dev/null || true' INT TERM EXIT; \
 		go run ./server/cmd/authpilot -http-addr $$http_addr -protocol-addr $$protocol_addr; \
 		status=$$?; \
@@ -157,8 +157,16 @@ stop:
 health:
 	@curl -sS -i $(HEALTH_URL) | sed -n '1,8p'
 
+dev:
+	@mkdir -p .tmp
+	@echo "Starting admin SPA watcher (log: .tmp/admin-watch.log)"
+	@cd client/admin-spa && npm install && npm run build -- --watch > ../../.tmp/admin-watch.log 2>&1 & echo $$! > .tmp/spa-watcher.pid
+	@echo "Starting Go server with hot-reload (air)"
+	@trap 'kill $$(cat .tmp/spa-watcher.pid 2>/dev/null) 2>/dev/null || true; rm -f .tmp/spa-watcher.pid' INT TERM EXIT; \
+	air
+
 admin-build:
-	cd client/admin-spa && npm run build
+	cd client/admin-spa && npm install && npm run build
 
 notify-build:
-	cd client/notify-spa && npm run build
+	cd client/notify-spa && npm install && npm run build

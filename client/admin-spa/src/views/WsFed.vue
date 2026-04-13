@@ -65,7 +65,7 @@
             {{ metaStatus === 'ok' ? 'reachable' : metaStatus === 'error' ? 'unreachable' : 'checking…' }}
           </span>
           <a
-            href="http://localhost:8026/federationmetadata/2007-06/federationmetadata.xml"
+            :href="`${protocolURL}/federationmetadata/2007-06/federationmetadata.xml`"
             target="_blank"
             class="btn btn-ghost btn-sm"
           >Open ↗</a>
@@ -89,13 +89,13 @@
             <tr>
               <td style="padding:6px 12px 6px 0;color:var(--text-muted);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap">Info page</td>
               <td style="padding:6px 0">
-                <a href="http://localhost:8026/wsfed" target="_blank" style="font-size:13px;color:var(--primary)">http://localhost:8026/wsfed</a>
+                <a :href="`${protocolURL}/wsfed`" target="_blank" style="font-size:13px;color:var(--primary)">{{ protocolURL }}/wsfed</a>
               </td>
             </tr>
             <tr>
               <td style="padding:6px 12px 6px 0;color:var(--text-muted);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap">Metadata XML</td>
               <td style="padding:6px 0">
-                <a href="http://localhost:8026/federationmetadata/2007-06/federationmetadata.xml" target="_blank" style="font-size:13px;color:var(--primary)">http://localhost:8026/federationmetadata/2007-06/federationmetadata.xml</a>
+                <a :href="`${protocolURL}/federationmetadata/2007-06/federationmetadata.xml`" target="_blank" style="font-size:13px;color:var(--primary)">{{ protocolURL }}/federationmetadata/2007-06/federationmetadata.xml</a>
               </td>
             </tr>
             <tr>
@@ -122,13 +122,22 @@ import { ref, onMounted } from 'vue'
 
 const metadataXML = ref('')
 const metaStatus = ref<'checking' | 'ok' | 'error'>('checking')
+const protocolURL = ref('http://localhost:8026')
+
+async function loadProtocolURL() {
+  try {
+    const res = await fetch('/api/v1/config')
+    const cfg = await res.json()
+    if (cfg.protocol_url) protocolURL.value = cfg.protocol_url
+  } catch { /* keep default */ }
+}
 
 async function loadMetadata() {
   metaStatus.value = 'checking'
   metadataXML.value = ''
   try {
     const res = await fetch(
-      'http://localhost:8026/federationmetadata/2007-06/federationmetadata.xml',
+      `${protocolURL.value}/federationmetadata/2007-06/federationmetadata.xml`,
       { signal: AbortSignal.timeout(3000) }
     )
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -139,5 +148,8 @@ async function loadMetadata() {
   }
 }
 
-onMounted(loadMetadata)
+onMounted(async () => {
+  await loadProtocolURL()
+  await loadMetadata()
+})
 </script>

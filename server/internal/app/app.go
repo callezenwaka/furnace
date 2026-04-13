@@ -103,6 +103,8 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 		scimCl = scimclient.New(cfg.SCIMTargetURL, scimEventStore)
 	}
 
+	protocolBase := "http://localhost" + cfg.ProtocolAddr
+
 	router := httpapi.NewRouter(httpapi.Dependencies{
 		Users:         users,
 		Groups:        groups,
@@ -112,6 +114,7 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 		APIKey:        cfg.APIKey,
 		SCIMKey:       cfg.SCIMKey,
 		BaseURL:       httpBaseURL,
+		ProtocolURL:   protocolBase,
 		RateLimit:     cfg.RateLimit,
 		SCIMRouter:    scimRouter,
 		TokenMinter:   &issuerMinter{issuer: issuer},
@@ -144,7 +147,6 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("initialize saml cert manager: %w", err)
 	}
-	protocolBase := "http://localhost" + cfg.ProtocolAddr
 	samlEntityID := cfg.SAML.EntityID
 	if samlEntityID == "" {
 		samlEntityID = protocolBase
@@ -180,7 +182,7 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 
 	protocolServer := &http.Server{
 		Addr:              cfg.ProtocolAddr,
-		Handler:           protocolMux,
+		Handler:           corsMiddleware(protocolMux),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -356,6 +358,21 @@ func seedUsers(users store.UserStore, seeds []config.SeedUser) error {
 		}
 	}
 	return nil
+}
+
+// corsMiddleware adds permissive CORS headers to all protocol server responses.
+// This allows the admin SPA (served on a different port) to fetch metadata documents.
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // issuerConfigPatcher adapts oidcengine.Issuer to the httpapi.ConfigPatcher interface.

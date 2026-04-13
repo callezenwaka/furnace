@@ -88,6 +88,9 @@ type Dependencies struct {
 	SCIMClient     SCIMClient
 	// SCIMEvents, if non-nil, backs GET /api/v1/scim/events.
 	SCIMEvents     SCIMEventLister
+	// ProtocolURL is the base URL of the protocol server (e.g. "http://localhost:18026").
+	// Exposed via GET /api/v1/config so the admin SPA can build correct endpoint URLs.
+	ProtocolURL    string
 }
 
 // resolveStores returns the correct store set for the request context.
@@ -227,7 +230,7 @@ func NewRouter(dep Dependencies) http.Handler {
 		users, _, _, _, _ := dep.resolveStores(r.Context())
 		mintTokenHandler(users, dep.TokenMinter)(w, r)
 	}).Methods(http.MethodPost)
-	api.HandleFunc("/config", getConfigHandler(dep.ConfigPatcher)).Methods(http.MethodGet)
+	api.HandleFunc("/config", getConfigHandler(dep.ConfigPatcher, dep.ProtocolURL)).Methods(http.MethodGet)
 	api.HandleFunc("/config", patchConfigHandler(dep.ConfigPatcher)).Methods(http.MethodPatch)
 
 	api.HandleFunc("/export", func(w http.ResponseWriter, r *http.Request) {
@@ -395,6 +398,9 @@ func listUsersHandler(users store.UserStore) http.HandlerFunc {
 			writeError(w, http.StatusInternalServerError, "list_users_failed", err.Error())
 			return
 		}
+		if result == nil {
+			result = []domain.User{}
+		}
 		writeJSON(w, http.StatusOK, result)
 	}
 }
@@ -513,6 +519,9 @@ func listGroupsHandler(groups store.GroupStore) http.HandlerFunc {
 			writeError(w, http.StatusInternalServerError, "list_groups_failed", err.Error())
 			return
 		}
+		if result == nil {
+			result = []domain.Group{}
+		}
 		writeJSON(w, http.StatusOK, result)
 	}
 }
@@ -618,6 +627,9 @@ func listSessionsHandler(sessions store.SessionStore) http.HandlerFunc {
 		if err != nil {
 			writeAPIError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to list sessions", false)
 			return
+		}
+		if result == nil {
+			result = []domain.Session{}
 		}
 		writeJSON(w, http.StatusOK, result)
 	}
@@ -746,14 +758,15 @@ func loginMagicHandler(flows store.FlowStore, users store.UserStore) http.Handle
 	}
 }
 
-func getConfigHandler(cp ConfigPatcher) http.HandlerFunc {
+func getConfigHandler(cp ConfigPatcher, protocolURL string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if cp == nil {
 			writeAPIError(w, r, http.StatusNotImplemented, "NOT_IMPLEMENTED", "config management is not available", false)
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{
-			"tokens": cp.GetTokenTTLs(),
+			"tokens":       cp.GetTokenTTLs(),
+			"protocol_url": protocolURL,
 		})
 	}
 }
