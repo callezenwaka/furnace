@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "authpilot.fullname" . }}
+  labels:
+    {{- include "authpilot.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    log_level: {{ .Values.config.logLevel | quote }}
+    provider: {{ .Values.config.provider | quote }}
+    tenancy: {{ .Values.config.tenancy | quote }}
+    header_propagation: {{ .Values.config.headerPropagation }}
+    {{- if .Values.config.rateLimit }}
+    rate_limit: {{ .Values.config.rateLimit }}
+    {{- end }}
+    {{- with .Values.config.oidc }}
+    oidc:
+      {{- if .issuerURL }}
+      issuer_url: {{ .issuerURL | quote }}
+      {{- end }}
+      {{- if .accessTokenTTL }}
+      access_token_ttl: {{ .accessTokenTTL | quote }}
+      {{- end }}
+      {{- if .idTokenTTL }}
+      id_token_ttl: {{ .idTokenTTL | quote }}
+      {{- end }}
+      {{- if .refreshTokenTTL }}
+      refresh_token_ttl: {{ .refreshTokenTTL | quote }}
+      {{- end }}
+    {{- end }}
+    {{- if .Values.persistence.enabled }}
+    persistence:
+      enabled: true
+      sqlite_path: {{ .Values.persistence.mountPath }}/authpilot.db
+    {{- end }}
+    {{- if .Values.seedUsers }}
+    seed_users:
+      {{- toYaml .Values.seedUsers | nindent 6 }}
+    {{- end }}

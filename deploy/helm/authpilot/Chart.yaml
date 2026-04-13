@@ -1,0 +1,17 @@
+apiVersion: v2
+name: authpilot
+description: Local identity provider simulator for development and staging environments.
+type: application
+version: 0.0.0       # replaced at release time by helm package --version
+appVersion: "latest" # replaced at release time
+home: https://github.com/callezenwaka/authpilot
+sources:
+  - https://github.com/callezenwaka/authpilot
+keywords:
+  - oidc
+  - saml
+  - identity
+  - auth
+  - testing
+maintainers:
+  - name: Authpilot maintainers

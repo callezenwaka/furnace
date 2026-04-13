@@ -9,16 +9,17 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  test:
+  # ── Go: vet, test, lint ──────────────────────────────────────────────────
+  go:
+    name: Go (vet / test / lint)
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
+      - uses: actions/setup-go@v5
         with:
-          go-version: "1.25"
+          go-version: "1.26"
+          cache: true
 
       - name: Download dependencies
         run: go mod download
@@ -27,18 +28,95 @@ jobs:
         run: go vet ./...
 
       - name: Test
-        run: go test ./...
+        run: go test -race ./...
 
       - name: Lint
         uses: golangci/golangci-lint-action@v8
         with:
           version: v2.11.4
 
-  docker-build:
+  # ── Cross-compile verification ───────────────────────────────────────────
+  cross-compile:
+    name: Cross-compile (${{ matrix.goos }}/${{ matrix.goarch }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          cache: true
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: go build -o /dev/null ./server/cmd/authpilot
+
+  # ── Admin SPA ────────────────────────────────────────────────────────────
+  admin-spa:
+    name: Admin SPA (tsc / build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client/admin-spa
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: client/admin-spa/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+  # ── Notify SPA ───────────────────────────────────────────────────────────
+  notify-spa:
+    name: Notify SPA (tsc / build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client/notify-spa
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: client/notify-spa/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+  # ── Docker build verification ─────────────────────────────────────────────
+  docker:
+    name: Docker build
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Build image
         run: docker build -t authpilot:ci .

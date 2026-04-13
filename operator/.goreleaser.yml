@@ -1,0 +1,40 @@
+version: 2
+
+project_name: authpilot-operator
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: authpilot-operator
+    main: ./cmd/main.go
+    binary: authpilot-operator
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "{{ .ProjectName }}_{{ .Version }}_SHA256SUMS"
+  algorithm: sha256
+
+release:
+  github:
+    owner: "{{ .Env.GITHUB_REPOSITORY_OWNER }}"
+    name: authpilot
+  name_template: "operator/{{ .Tag }}"
+  header: |
+    ## Authpilot Operator {{ .Tag }}
+
+    Docker image: `ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/authpilot-operator:{{ .Version }}`
+
+changelog:
+  disable: true

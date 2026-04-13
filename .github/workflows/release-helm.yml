@@ -1,0 +1,52 @@
+name: Release Helm Chart
+
+on:
+  push:
+    tags:
+      - 'helm/v*'
+
+permissions:
+  contents: write   # push to gh-pages branch
+  pages: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  release:
+    name: Package and publish Helm chart
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version
+        run: |
+          TAG="${{ github.ref_name }}"
+          VERSION="${TAG#helm/}"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          # strip leading 'v' for Helm chart version (semver without v prefix)
+          echo "CHART_VERSION=${VERSION#v}" >> $GITHUB_ENV
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: "3.17.0"
+
+      - name: Package chart
+        run: |
+          helm package deploy/helm/authpilot \
+            --version "${{ env.CHART_VERSION }}" \
+            --app-version "${{ env.VERSION }}" \
+            --destination /tmp/helm-packages
+
+      - name: Publish to GitHub Pages (chart repository)
+        uses: helm/chart-releaser-action@v1.6.0
+        with:
+          charts_dir: deploy/helm
+          skip_packaging: false
+          packages_with_index: true
+        env:
+          CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CR_RELEASE_NAME_TEMPLATE: "helm-{{ .Version }}"

@@ -1,0 +1,70 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/callezenwaka/authpilot
+  pullPolicy: IfNotPresent
+  tag: ""  # defaults to Chart.appVersion
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: ClusterIP
+  httpPort: 8025
+  protocolPort: 8026
+
+# Authpilot configuration
+config:
+  apiKey: ""             # AUTHPILOT_API_KEY
+  scimKey: ""            # AUTHPILOT_SCIM_KEY
+  provider: "default"    # AUTHPILOT_PROVIDER
+  tenancy: "single"      # AUTHPILOT_TENANCY: single | multi
+  logLevel: "info"       # AUTHPILOT_LOG_LEVEL
+  headerPropagation: false
+  oidc:
+    issuerURL: ""        # defaults to http://<service>:<protocolPort>
+    accessTokenTTL: ""   # e.g. "1h"
+    idTokenTTL: ""
+    refreshTokenTTL: ""
+  rateLimit: 0           # requests/min per IP; 0 = disabled
+
+# SQLite persistence
+persistence:
+  enabled: false
+  storageClass: ""
+  size: 1Gi
+  mountPath: /data
+
+# Seed users loaded at startup (YAML inline, same schema as seed_users config key)
+seedUsers: []
+# - id: alice
+#   email: alice@example.com
+#   display_name: Alice Smith
+#   groups: [eng]
+#   mfa_method: totp
+#   active: true
+
+resources: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+podAnnotations: {}
+podSecurityContext: {}
+securityContext: {}
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 3
+  periodSeconds: 5

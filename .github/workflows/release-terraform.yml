@@ -1,0 +1,52 @@
+name: Release Terraform Provider
+
+on:
+  push:
+    tags:
+      - 'terraform/v*'
+
+permissions:
+  contents: write   # create GitHub Release + upload assets
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  release:
+    name: GoReleaser (Terraform provider)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          cache: true
+          cache-dependency-path: terraform/go.sum
+
+      - name: Extract version
+        run: |
+          TAG="${{ github.ref_name }}"
+          VERSION="${TAG#terraform/}"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      # Terraform Registry requires provider binaries to be GPG-signed.
+      # Import the signing key from a repo secret.
+      - name: Import GPG key
+        uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PASSPHRASE }}
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --clean
+          workdir: terraform
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
+          GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
