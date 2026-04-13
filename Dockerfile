@@ -1,4 +1,9 @@
-FROM golang:1.26.2-alpine3.21 AS builder
+FROM golang:1.26.2-alpine3.23 AS builder
+
+# Upgrade Alpine packages to clear known CVEs in the builder layer.
+# The final image is chainguard/static and carries none of these packages.
+RUN apk upgrade --no-cache
+
 WORKDIR /src
 
 COPY go.mod ./

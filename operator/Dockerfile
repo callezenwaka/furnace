@@ -1,4 +1,8 @@
-FROM golang:1.26.2-alpine AS builder
+FROM golang:1.26.2-alpine3.23 AS builder
+
+# Upgrade Alpine packages to clear known CVEs in the builder layer.
+# The final image is distroless/static and carries none of these packages.
+RUN apk upgrade --no-cache
 
 WORKDIR /workspace
 COPY go.mod go.sum ./
