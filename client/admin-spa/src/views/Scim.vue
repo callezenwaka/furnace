@@ -112,6 +112,68 @@
     </details>
 
     <div v-if="error" class="error-msg" style="margin-top:12px">{{ error }}</div>
+
+    <!-- SCIM Client Events (BUI9) -->
+    <div style="margin-top:28px">
+      <div class="page-header" style="margin-bottom:14px">
+        <h2 style="margin:0;font-size:16px;font-weight:700">Outbound SCIM Events</h2>
+        <button class="btn btn-ghost btn-sm" @click="loadEvents">Refresh</button>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <h2>{{ scimEvents.length }} event{{ scimEvents.length !== 1 ? 's' : '' }}</h2>
+          <span class="badge badge-gray">AUTHPILOT_SCIM_MODE=client</span>
+        </div>
+        <div class="table-wrap">
+          <table v-if="scimEvents.length">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Method</th>
+                <th>URL</th>
+                <th>Status</th>
+                <th>Error</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template v-for="ev in scimEvents" :key="ev.id ?? ev.timestamp">
+                <tr @click="toggleEvent(ev.timestamp)" style="cursor:pointer">
+                  <td style="white-space:nowrap;font-size:12px">{{ formatDate(ev.timestamp) }}</td>
+                  <td><span class="badge" :class="methodBadge(ev.method)">{{ ev.method }}</span></td>
+                  <td style="font-size:12px;font-family:monospace;word-break:break-all">{{ ev.url }}</td>
+                  <td>
+                    <span v-if="ev.response_status" class="badge" :class="statusBadge(ev.response_status)">
+                      {{ ev.response_status }}
+                    </span>
+                    <span v-else class="badge badge-gray">—</span>
+                  </td>
+                  <td style="font-size:12px;color:var(--danger)">{{ ev.error || '' }}</td>
+                </tr>
+                <tr v-if="expandedEvent === ev.timestamp">
+                  <td colspan="5" style="background:#f8faff;padding:14px 18px">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+                      <div>
+                        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px">REQUEST BODY</div>
+                        <pre style="font-size:11px;margin:0;overflow-x:auto;white-space:pre-wrap">{{ prettyJSON(ev.request_body) }}</pre>
+                      </div>
+                      <div>
+                        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px">RESPONSE BODY</div>
+                        <pre style="font-size:11px;margin:0;overflow-x:auto;white-space:pre-wrap">{{ prettyJSON(ev.response_body) }}</pre>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+          <div v-else-if="eventsDisabled" class="empty">
+            SCIM client mode is not enabled.<br>
+            Set <code>AUTHPILOT_SCIM_MODE=client</code> and <code>AUTHPILOT_SCIM_TARGET=&lt;url&gt;</code> to activate.
+          </div>
+          <div v-else class="empty">{{ eventsLoading ? 'Loading…' : 'No outbound SCIM events yet.' }}</div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -132,6 +194,17 @@ interface SCIMGroup {
   members?: { value: string; display?: string }[]
 }
 
+interface SCIMEvent {
+  id?: string
+  timestamp: string
+  method: string
+  url: string
+  request_body?: string
+  response_status?: number
+  response_body?: string
+  error?: string
+}
+
 const scimUsers = ref<SCIMUser[]>([])
 const scimGroups = ref<SCIMGroup[]>([])
 const spcJSON = ref('')
@@ -139,6 +212,10 @@ const filter = ref('')
 const usersLoading = ref(false)
 const groupsLoading = ref(false)
 const error = ref('')
+const scimEvents = ref<SCIMEvent[]>([])
+const eventsLoading = ref(false)
+const eventsDisabled = ref(false)
+const expandedEvent = ref<string | null>(null)
 
 async function loadUsers() {
   usersLoading.value = true
@@ -180,9 +257,55 @@ async function loadSPC() {
   } catch { /* ignore */ }
 }
 
+async function loadEvents() {
+  eventsLoading.value = true
+  eventsDisabled.value = false
+  try {
+    const res = await fetch('/api/v1/scim/events')
+    if (res.status === 501) { eventsDisabled.value = true; scimEvents.value = []; return }
+    if (!res.ok) throw new Error(`${res.status}`)
+    scimEvents.value = await res.json()
+  } catch {
+    scimEvents.value = []
+  } finally {
+    eventsLoading.value = false
+  }
+}
+
+function toggleEvent(ts: string) {
+  expandedEvent.value = expandedEvent.value === ts ? null : ts
+}
+
+function formatDate(iso: string) {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleString()
+}
+
+function methodBadge(method: string) {
+  switch (method) {
+    case 'POST':   return 'badge-blue'
+    case 'PUT':    return 'badge-yellow'
+    case 'DELETE': return 'badge-red'
+    default:       return 'badge-gray'
+  }
+}
+
+function statusBadge(status: number) {
+  if (status >= 200 && status < 300) return 'badge-green'
+  if (status >= 400) return 'badge-red'
+  return 'badge-gray'
+}
+
+function prettyJSON(raw: string | undefined) {
+  if (!raw) return '—'
+  try { return JSON.stringify(JSON.parse(raw), null, 2) }
+  catch { return raw }
+}
+
 onMounted(() => {
   loadUsers()
   loadGroups()
   loadSPC()
+  loadEvents()
 })
 </script>
