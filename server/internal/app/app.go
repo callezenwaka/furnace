@@ -12,6 +12,7 @@ import (
 	"authpilot/server/internal/domain"
 	"authpilot/server/internal/httpapi"
 	oidcengine "authpilot/server/internal/oidc"
+	"authpilot/server/internal/personality"
 	samlengine "authpilot/server/internal/saml"
 	"authpilot/server/internal/scim"
 	"authpilot/server/internal/store"
@@ -77,6 +78,11 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 		RefreshTokenTTL: cfg.OIDC.RefreshTokenTTL,
 	}
 	issuer := oidcengine.NewIssuer(km, tokenCfg, cfg.OIDC.IssuerURL)
+	if cfg.Provider != "" {
+		if p, ok := personality.Get(cfg.Provider); ok {
+			issuer.SetPersonality(p)
+		}
+	}
 
 	cp := &issuerConfigPatcher{issuer: issuer}
 

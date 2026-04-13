@@ -3,12 +3,14 @@ package oidc
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"time"
 
 	jose "github.com/go-jose/go-jose/v3"
 
 	"authpilot/server/internal/domain"
+	"authpilot/server/internal/personality"
 )
 
 // TokenConfig controls lifetimes for issued tokens.
@@ -38,15 +40,29 @@ type TokenSet struct {
 
 // Issuer builds and signs tokens for a completed flow.
 type Issuer struct {
-	km     *KeyManager
-	cfg    atomic.Pointer[TokenConfig]
-	issuer string // e.g. "http://localhost:8026"
+	km          *KeyManager
+	cfg         atomic.Pointer[TokenConfig]
+	issuer      string // e.g. "http://localhost:8026"
+	personality *personality.Personality
 }
 
 func NewIssuer(km *KeyManager, cfg TokenConfig, issuerURL string) *Issuer {
-	i := &Issuer{km: km, issuer: issuerURL}
+	i := &Issuer{km: km, issuer: issuerURL, personality: personality.Default}
 	i.cfg.Store(&cfg)
 	return i
+}
+
+// SetPersonality sets the active provider personality used when building tokens.
+func (i *Issuer) SetPersonality(p *personality.Personality) {
+	if p == nil {
+		p = personality.Default
+	}
+	i.personality = p
+}
+
+// GetPersonality returns the active provider personality.
+func (i *Issuer) GetPersonality() *personality.Personality {
+	return i.personality
 }
 
 // SetTokenConfig atomically replaces the token TTL configuration.
@@ -106,7 +122,7 @@ func (i *Issuer) Issue(flow domain.Flow, user domain.User) (TokenSet, error) {
 		}
 	}
 
-	idToken, err := i.signJWT(signer, idClaims)
+	idToken, err := i.signJWT(signer, i.personality.Apply(idClaims))
 	if err != nil {
 		return TokenSet{}, fmt.Errorf("sign id token: %w", err)
 	}
@@ -116,15 +132,7 @@ func (i *Issuer) Issue(flow domain.Flow, user domain.User) (TokenSet, error) {
 		return TokenSet{}, fmt.Errorf("generate refresh token: %w", err)
 	}
 
-	scopeStr := ""
-	if len(flow.Scopes) > 0 {
-		for idx, s := range flow.Scopes {
-			if idx > 0 {
-				scopeStr += " "
-			}
-			scopeStr += s
-		}
-	}
+	scopeStr := strings.Join(flow.Scopes, " ")
 
 	return TokenSet{
 		AccessToken:  accessToken,
@@ -187,7 +195,7 @@ func (i *Issuer) MintForUser(user domain.User, clientID string, scopes []string,
 		}
 	}
 
-	idToken, err := i.signJWT(signer, idClaims)
+	idToken, err := i.signJWT(signer, i.personality.Apply(idClaims))
 	if err != nil {
 		return MintedTokens{}, fmt.Errorf("sign id token: %w", err)
 	}

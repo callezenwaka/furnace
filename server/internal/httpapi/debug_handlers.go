@@ -1,0 +1,150 @@
+package httpapi
+
+import (
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"strings"
+
+	"github.com/gorilla/mux"
+
+	"authpilot/server/internal/store"
+)
+
+// tokenCompareHandler implements GET /api/v1/debug/token-compare.
+//
+// Accepts two JWT strings — one from Authpilot and one from a real provider —
+// and returns a structured diff of their claim sets. No signature verification
+// is performed; this is a dev/debug tool only.
+//
+// Query params:
+//   - authpilot_token: JWT issued by this Authpilot instance
+//   - provider_token:  JWT from the real provider (Okta, Azure AD, etc.)
+//
+// Optional:
+//   - flow_id: if supplied, verifies the flow exists (helps correlate context)
+func tokenCompareHandler(flows store.FlowStore) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		authpilotToken := strings.TrimSpace(r.URL.Query().Get("authpilot_token"))
+		providerToken := strings.TrimSpace(r.URL.Query().Get("provider_token"))
+		flowID := strings.TrimSpace(r.URL.Query().Get("flow_id"))
+
+		if authpilotToken == "" {
+			writeAPIError(w, r, http.StatusBadRequest, "INVALID_REQUEST", "authpilot_token is required", false)
+			return
+		}
+		if providerToken == "" {
+			writeAPIError(w, r, http.StatusBadRequest, "INVALID_REQUEST", "provider_token is required", false)
+			return
+		}
+
+		// Optional flow context check.
+		if flowID != "" {
+			if _, err := flows.GetByID(flowID); err != nil {
+				writeAPIError(w, r, http.StatusNotFound, "RESOURCE_NOT_FOUND", "flow not found", false)
+				return
+			}
+		}
+
+		authpilotClaims, err := decodeJWTClaims(authpilotToken)
+		if err != nil {
+			writeAPIError(w, r, http.StatusUnprocessableEntity, "DECODE_FAILED",
+				fmt.Sprintf("could not decode authpilot_token: %v", err), false)
+			return
+		}
+
+		providerClaims, err := decodeJWTClaims(providerToken)
+		if err != nil {
+			writeAPIError(w, r, http.StatusUnprocessableEntity, "DECODE_FAILED",
+				fmt.Sprintf("could not decode provider_token: %v", err), false)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, map[string]any{
+			"authpilot_token": authpilotClaims,
+			"provider_token":  providerClaims,
+			"differences":     diffClaims(authpilotClaims, providerClaims),
+		})
+	}
+}
+
+// ClaimDiff describes a single claim difference between two tokens.
+type ClaimDiff struct {
+	Path            string `json:"path"`
+	AuthpilotValue  any    `json:"authpilot_value"`
+	ProviderValue   any    `json:"provider_value"`
+	Note            string `json:"note"`
+}
+
+// diffClaims compares two claim maps and returns a list of differences.
+func diffClaims(authpilot, provider map[string]any) []ClaimDiff {
+	var diffs []ClaimDiff
+	seen := make(map[string]bool)
+
+	for k, av := range authpilot {
+		seen[k] = true
+		pv, ok := provider[k]
+		if !ok {
+			diffs = append(diffs, ClaimDiff{
+				Path:           k,
+				AuthpilotValue: av,
+				ProviderValue:  nil,
+				Note:           "present in authpilot token, missing in provider token",
+			})
+			continue
+		}
+		if fmt.Sprintf("%v", av) != fmt.Sprintf("%v", pv) {
+			diffs = append(diffs, ClaimDiff{
+				Path:           k,
+				AuthpilotValue: av,
+				ProviderValue:  pv,
+				Note:           "values differ",
+			})
+		}
+	}
+
+	for k, pv := range provider {
+		if seen[k] {
+			continue
+		}
+		diffs = append(diffs, ClaimDiff{
+			Path:           k,
+			AuthpilotValue: nil,
+			ProviderValue:  pv,
+			Note:           "missing in authpilot token, present in provider token",
+		})
+	}
+
+	if diffs == nil {
+		diffs = []ClaimDiff{}
+	}
+	return diffs
+}
+
+// decodeJWTClaims decodes the claims from a JWT without verifying the signature.
+// Safe for dev/debug use only.
+func decodeJWTClaims(token string) (map[string]any, error) {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return nil, fmt.Errorf("not a valid JWT (expected 3 parts, got %d)", len(parts))
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return nil, fmt.Errorf("decode payload: %w", err)
+	}
+	var claims map[string]any
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return nil, fmt.Errorf("unmarshal claims: %w", err)
+	}
+	return claims, nil
+}
+
+// registerDebugRoutes adds debug-only endpoints to the API subrouter.
+// These are always registered — callers should gate them with an API key.
+func registerDebugRoutes(api *mux.Router, dep *Dependencies) {
+	api.HandleFunc("/debug/token-compare", func(w http.ResponseWriter, r *http.Request) {
+		_, _, flows, _, _ := dep.resolveStores(r.Context())
+		tokenCompareHandler(flows)(w, r)
+	}).Methods(http.MethodGet)
+}

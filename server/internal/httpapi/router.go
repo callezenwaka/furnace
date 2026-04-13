@@ -226,6 +226,8 @@ func NewRouter(dep Dependencies) http.Handler {
 		auditExportHandler(as)(w, r)
 	}).Methods(http.MethodGet)
 
+	registerDebugRoutes(api, &dep)
+
 	// Mount SCIM 2.0 under /scim/v2 with its own credential.
 	if dep.SCIMRouter != nil {
 		scim := r.PathPrefix("/scim/v2").Subrouter()

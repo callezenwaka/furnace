@@ -55,8 +55,9 @@ type Config struct {
 	RateLimit         int           `yaml:"rate_limit"`         // requests/min per IP on /api/v1; 0 = disabled
 	SeedUsers         []SeedUser    `yaml:"seed_users"`         // users created at startup; idempotent
 	HeaderPropagation bool          `yaml:"header_propagation"` // inject X-User-* headers on /userinfo responses
-	Tenancy           TenancyMode   `yaml:"tenancy"`            // "single" (default) or "multi"
+	Tenancy           TenancyMode    `yaml:"tenancy"`            // "single" (default) or "multi"
 	Tenants           []TenantConfig `yaml:"tenants"`            // populated only in multi mode
+	Provider          string         `yaml:"provider"`           // personality ID: "default", "okta", "azure-ad", etc.
 }
 
 type SAMLConfig struct {
@@ -157,6 +158,7 @@ type yamlConfig struct {
 	SeedUsers    []SeedUser           `yaml:"seed_users"`
 	Tenancy      string               `yaml:"tenancy"`
 	Tenants      []TenantConfig       `yaml:"tenants"`
+	Provider     string               `yaml:"provider"`
 }
 
 type yamlOIDC struct {
@@ -260,6 +262,9 @@ func mergeYAML(cfg *Config, from yamlConfig) error {
 	if len(from.Tenants) > 0 {
 		cfg.Tenants = from.Tenants
 	}
+	if from.Provider != "" {
+		cfg.Provider = from.Provider
+	}
 	return nil
 }
 
@@ -335,6 +340,9 @@ func applyEnv(cfg *Config) error {
 	}
 	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_TENANCY")); v != "" {
 		cfg.Tenancy = TenancyMode(v)
+	}
+	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_PROVIDER")); v != "" {
+		cfg.Provider = v
 	}
 	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_SEED_USERS")); v != "" {
 		var users []SeedUser
