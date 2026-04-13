@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -17,6 +18,7 @@ import (
 	"authpilot/server/internal/export"
 	"authpilot/server/internal/notify"
 	"authpilot/server/internal/store"
+	"authpilot/server/internal/store/tenanted"
 )
 
 // MintedTokens is the response payload for POST /api/v1/tokens/mint.
@@ -55,13 +57,30 @@ type Dependencies struct {
 	Audit           store.AuditStore  // nil = audit disabled
 	AdminStaticDir  string
 	NotifyStaticDir string
-	APIKey          string       // empty = local dev mode (no auth required)
-	SCIMKey         string       // separate credential for /scim/v2; falls back to APIKey when empty
-	BaseURL         string       // e.g. "http://localhost:8025" — used for magic link URLs
-	RateLimit       int          // requests per minute per IP; 0 = disabled
+	APIKey          string        // empty = local dev mode (no auth required); ignored in multi-tenant mode
+	SCIMKey         string        // separate credential for /scim/v2; falls back to APIKey when empty
+	BaseURL         string        // e.g. "http://localhost:8025" — used for magic link URLs
+	RateLimit       int           // requests per minute per IP; 0 = disabled
 	SCIMRouter      http.Handler  // mounted at /scim/v2; nil = disabled
 	TokenMinter     TokenMinter   // nil = /tokens/mint endpoint returns 501
 	ConfigPatcher   ConfigPatcher // nil = /config PATCH returns 501
+	// TenantStores, if non-nil, overrides the static store fields on a per-request
+	// basis using the tenant ID from the request context. Used only in multi mode.
+	TenantStores   *tenanted.Dispatcher
+	// TenantEntries maps API/SCIM keys to tenant IDs. Used by tenantAPIKeyMiddleware
+	// in multi mode. Nil/empty = single mode.
+	TenantEntries  []TenantEntry
+}
+
+// resolveStores returns the correct store set for the request context.
+// In single mode (TenantStores == nil) it returns the static Dependencies fields.
+// In multi mode it delegates to the Dispatcher.
+func (d *Dependencies) resolveStores(ctx context.Context) (store.UserStore, store.GroupStore, store.FlowStore, store.SessionStore, store.AuditStore) {
+	if d.TenantStores == nil {
+		return d.Users, d.Groups, d.Flows, d.Sessions, d.Audit
+	}
+	s := d.TenantStores.ForContext(ctx)
+	return s.Users, s.Groups, s.Flows, s.Sessions, s.Audit
 }
 
 func NewRouter(dep Dependencies) http.Handler {
@@ -80,7 +99,11 @@ func NewRouter(dep Dependencies) http.Handler {
 	r.HandleFunc("/login/magic", loginMagicHandler(dep.Flows, dep.Users)).Methods(http.MethodGet)
 
 	api := r.PathPrefix("/api/v1").Subrouter()
-	api.Use(apiKeyMiddleware(dep.APIKey))
+	if dep.TenantStores != nil && len(dep.TenantEntries) > 0 {
+		api.Use(tenantAPIKeyMiddleware(dep.TenantEntries))
+	} else {
+		api.Use(apiKeyMiddleware(dep.APIKey))
+	}
 
 	if dep.RateLimit > 0 {
 		rl := NewRateLimiter(dep.RateLimit, time.Minute)
@@ -94,50 +117,129 @@ func NewRouter(dep Dependencies) http.Handler {
 	api.HandleFunc("/openapi.json", openAPISpecHandler).Methods(http.MethodGet)
 	api.HandleFunc("/docs", openAPIDocsHandler).Methods(http.MethodGet)
 
-	api.HandleFunc("/users", listUsersHandler(dep.Users)).Methods(http.MethodGet)
-	api.HandleFunc("/users", createUserHandler(dep.Users, dep.Audit)).Methods(http.MethodPost)
-	api.HandleFunc("/users/{id}", getUserHandler(dep.Users)).Methods(http.MethodGet)
-	api.HandleFunc("/users/{id}", updateUserHandler(dep.Users, dep.Audit)).Methods(http.MethodPut)
-	api.HandleFunc("/users/{id}", deleteUserHandler(dep.Users, dep.Audit)).Methods(http.MethodDelete)
+	api.HandleFunc("/users", func(w http.ResponseWriter, r *http.Request) {
+		users, _, _, _, _ := dep.resolveStores(r.Context())
+		listUsersHandler(users)(w, r)
+	}).Methods(http.MethodGet)
+	api.HandleFunc("/users", func(w http.ResponseWriter, r *http.Request) {
+		users, _, _, _, as := dep.resolveStores(r.Context())
+		createUserHandler(users, as)(w, r)
+	}).Methods(http.MethodPost)
+	api.HandleFunc("/users/{id}", func(w http.ResponseWriter, r *http.Request) {
+		users, _, _, _, _ := dep.resolveStores(r.Context())
+		getUserHandler(users)(w, r)
+	}).Methods(http.MethodGet)
+	api.HandleFunc("/users/{id}", func(w http.ResponseWriter, r *http.Request) {
+		users, _, _, _, as := dep.resolveStores(r.Context())
+		updateUserHandler(users, as)(w, r)
+	}).Methods(http.MethodPut)
+	api.HandleFunc("/users/{id}", func(w http.ResponseWriter, r *http.Request) {
+		users, _, _, _, as := dep.resolveStores(r.Context())
+		deleteUserHandler(users, as)(w, r)
+	}).Methods(http.MethodDelete)
 
-	api.HandleFunc("/groups", listGroupsHandler(dep.Groups)).Methods(http.MethodGet)
-	api.HandleFunc("/groups", createGroupHandler(dep.Groups)).Methods(http.MethodPost)
-	api.HandleFunc("/groups/{id}", getGroupHandler(dep.Groups)).Methods(http.MethodGet)
-	api.HandleFunc("/groups/{id}", updateGroupHandler(dep.Groups)).Methods(http.MethodPut)
-	api.HandleFunc("/groups/{id}", deleteGroupHandler(dep.Groups)).Methods(http.MethodDelete)
+	api.HandleFunc("/groups", func(w http.ResponseWriter, r *http.Request) {
+		_, groups, _, _, _ := dep.resolveStores(r.Context())
+		listGroupsHandler(groups)(w, r)
+	}).Methods(http.MethodGet)
+	api.HandleFunc("/groups", func(w http.ResponseWriter, r *http.Request) {
+		_, groups, _, _, _ := dep.resolveStores(r.Context())
+		createGroupHandler(groups)(w, r)
+	}).Methods(http.MethodPost)
+	api.HandleFunc("/groups/{id}", func(w http.ResponseWriter, r *http.Request) {
+		_, groups, _, _, _ := dep.resolveStores(r.Context())
+		getGroupHandler(groups)(w, r)
+	}).Methods(http.MethodGet)
+	api.HandleFunc("/groups/{id}", func(w http.ResponseWriter, r *http.Request) {
+		_, groups, _, _, _ := dep.resolveStores(r.Context())
+		updateGroupHandler(groups)(w, r)
+	}).Methods(http.MethodPut)
+	api.HandleFunc("/groups/{id}", func(w http.ResponseWriter, r *http.Request) {
+		_, groups, _, _, _ := dep.resolveStores(r.Context())
+		deleteGroupHandler(groups)(w, r)
+	}).Methods(http.MethodDelete)
 
-	api.HandleFunc("/flows", listFlowsHandler(dep.Flows)).Methods(http.MethodGet)
-	api.HandleFunc("/flows", createFlowHandler(dep.Flows)).Methods(http.MethodPost)
-	api.HandleFunc("/flows/{id}", getFlowHandler(dep.Flows)).Methods(http.MethodGet)
-	api.HandleFunc("/flows/{id}/select-user", selectUserFlowHandler(dep.Flows, dep.Users, dep.Audit)).Methods(http.MethodPost)
-	api.HandleFunc("/flows/{id}/verify-mfa", verifyMFAFlowHandler(dep.Flows, dep.Users, dep.Audit)).Methods(http.MethodPost)
-	api.HandleFunc("/flows/{id}/approve", approveFlowHandler(dep.Flows, dep.Users, dep.Audit)).Methods(http.MethodPost)
-	api.HandleFunc("/flows/{id}/deny", denyFlowHandler(dep.Flows, dep.Audit)).Methods(http.MethodPost)
-	api.HandleFunc("/flows/{id}/webauthn-response", webauthnResponseHandler(dep.Flows, dep.Users, dep.Audit)).Methods(http.MethodPost)
+	api.HandleFunc("/flows", func(w http.ResponseWriter, r *http.Request) {
+		_, _, flows, _, _ := dep.resolveStores(r.Context())
+		listFlowsHandler(flows)(w, r)
+	}).Methods(http.MethodGet)
+	api.HandleFunc("/flows", func(w http.ResponseWriter, r *http.Request) {
+		_, _, flows, _, _ := dep.resolveStores(r.Context())
+		createFlowHandler(flows)(w, r)
+	}).Methods(http.MethodPost)
+	api.HandleFunc("/flows/{id}", func(w http.ResponseWriter, r *http.Request) {
+		_, _, flows, _, _ := dep.resolveStores(r.Context())
+		getFlowHandler(flows)(w, r)
+	}).Methods(http.MethodGet)
+	api.HandleFunc("/flows/{id}/select-user", func(w http.ResponseWriter, r *http.Request) {
+		users, _, flows, _, as := dep.resolveStores(r.Context())
+		selectUserFlowHandler(flows, users, as)(w, r)
+	}).Methods(http.MethodPost)
+	api.HandleFunc("/flows/{id}/verify-mfa", func(w http.ResponseWriter, r *http.Request) {
+		users, _, flows, _, as := dep.resolveStores(r.Context())
+		verifyMFAFlowHandler(flows, users, as)(w, r)
+	}).Methods(http.MethodPost)
+	api.HandleFunc("/flows/{id}/approve", func(w http.ResponseWriter, r *http.Request) {
+		users, _, flows, _, as := dep.resolveStores(r.Context())
+		approveFlowHandler(flows, users, as)(w, r)
+	}).Methods(http.MethodPost)
+	api.HandleFunc("/flows/{id}/deny", func(w http.ResponseWriter, r *http.Request) {
+		_, _, flows, _, as := dep.resolveStores(r.Context())
+		denyFlowHandler(flows, as)(w, r)
+	}).Methods(http.MethodPost)
+	api.HandleFunc("/flows/{id}/webauthn-response", func(w http.ResponseWriter, r *http.Request) {
+		users, _, flows, _, as := dep.resolveStores(r.Context())
+		webauthnResponseHandler(flows, users, as)(w, r)
+	}).Methods(http.MethodPost)
 
-	api.HandleFunc("/sessions", listSessionsHandler(dep.Sessions)).Methods(http.MethodGet)
-	api.HandleFunc("/notifications", listNotificationsHandler(dep.Flows, dep.Users, dep.BaseURL)).Methods(http.MethodGet)
-	api.HandleFunc("/notifications/all", listAllNotificationsHandler(dep.Flows, dep.Users, dep.BaseURL)).Methods(http.MethodGet)
+	api.HandleFunc("/sessions", func(w http.ResponseWriter, r *http.Request) {
+		_, _, _, sessions, _ := dep.resolveStores(r.Context())
+		listSessionsHandler(sessions)(w, r)
+	}).Methods(http.MethodGet)
+	api.HandleFunc("/notifications", func(w http.ResponseWriter, r *http.Request) {
+		users, _, flows, _, _ := dep.resolveStores(r.Context())
+		listNotificationsHandler(flows, users, dep.BaseURL)(w, r)
+	}).Methods(http.MethodGet)
+	api.HandleFunc("/notifications/all", func(w http.ResponseWriter, r *http.Request) {
+		users, _, flows, _, _ := dep.resolveStores(r.Context())
+		listAllNotificationsHandler(flows, users, dep.BaseURL)(w, r)
+	}).Methods(http.MethodGet)
 
-	api.HandleFunc("/tokens/mint", mintTokenHandler(dep.Users, dep.TokenMinter)).Methods(http.MethodPost)
+	api.HandleFunc("/tokens/mint", func(w http.ResponseWriter, r *http.Request) {
+		users, _, _, _, _ := dep.resolveStores(r.Context())
+		mintTokenHandler(users, dep.TokenMinter)(w, r)
+	}).Methods(http.MethodPost)
 	api.HandleFunc("/config", getConfigHandler(dep.ConfigPatcher)).Methods(http.MethodGet)
 	api.HandleFunc("/config", patchConfigHandler(dep.ConfigPatcher)).Methods(http.MethodPatch)
 
-	api.HandleFunc("/export", exportHandler(dep.Users, dep.Groups)).Methods(http.MethodGet)
+	api.HandleFunc("/export", func(w http.ResponseWriter, r *http.Request) {
+		users, groups, _, _, _ := dep.resolveStores(r.Context())
+		exportHandler(users, groups)(w, r)
+	}).Methods(http.MethodGet)
 
-	api.HandleFunc("/audit", auditListHandler(dep.Audit)).Methods(http.MethodGet)
-	api.HandleFunc("/audit/export", auditExportHandler(dep.Audit)).Methods(http.MethodGet)
+	api.HandleFunc("/audit", func(w http.ResponseWriter, r *http.Request) {
+		_, _, _, _, as := dep.resolveStores(r.Context())
+		auditListHandler(as)(w, r)
+	}).Methods(http.MethodGet)
+	api.HandleFunc("/audit/export", func(w http.ResponseWriter, r *http.Request) {
+		_, _, _, _, as := dep.resolveStores(r.Context())
+		auditExportHandler(as)(w, r)
+	}).Methods(http.MethodGet)
 
 	// Mount SCIM 2.0 under /scim/v2 with its own credential.
-	// SCIMKey takes precedence; falls back to APIKey so existing single-key
-	// deployments continue to work without configuration changes.
 	if dep.SCIMRouter != nil {
-		scimKey := dep.SCIMKey
-		if scimKey == "" {
-			scimKey = dep.APIKey
-		}
 		scim := r.PathPrefix("/scim/v2").Subrouter()
-		scim.Use(apiKeyMiddleware(scimKey))
+		if dep.TenantStores != nil && len(dep.TenantEntries) > 0 {
+			// Multi mode: resolve tenant from SCIM/API key.
+			scim.Use(tenantAPIKeyMiddleware(dep.TenantEntries))
+		} else {
+			// Single mode: SCIMKey takes precedence; falls back to APIKey.
+			scimKey := dep.SCIMKey
+			if scimKey == "" {
+				scimKey = dep.APIKey
+			}
+			scim.Use(apiKeyMiddleware(scimKey))
+		}
 		scim.PathPrefix("").Handler(dep.SCIMRouter)
 	}
 

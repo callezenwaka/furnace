@@ -12,6 +12,22 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// TenancyMode controls single vs. multi-tenant operation.
+type TenancyMode string
+
+const (
+	TenancySingle TenancyMode = "single"
+	TenancyMulti  TenancyMode = "multi"
+)
+
+// TenantConfig defines one tenant in multi-tenant mode.
+type TenantConfig struct {
+	ID           string `yaml:"id"`
+	APIKey       string `yaml:"api_key"`
+	SCIMKey      string `yaml:"scim_key"`        // optional; falls back to APIKey
+	OIDCIssuerURL string `yaml:"oidc_issuer_url"` // optional; overrides global OIDC issuer
+}
+
 // SeedUser is a user definition used for startup pre-seeding.
 // Matches the domain.User JSON shape so the same YAML works for both.
 type SeedUser struct {
@@ -34,11 +50,13 @@ type Config struct {
 	Cleanup      CleanupConfig     `yaml:"cleanup"`
 	OIDC         OIDCConfig        `yaml:"oidc"`
 	SAML         SAMLConfig        `yaml:"saml"`
-	APIKey              string            `yaml:"api_key"`              // empty = local dev mode (no auth)
-	SCIMKey             string            `yaml:"scim_key"`             // separate credential for /scim/v2; falls back to APIKey when empty
-	RateLimit           int               `yaml:"rate_limit"`           // requests/min per IP on /api/v1; 0 = disabled
-	SeedUsers           []SeedUser        `yaml:"seed_users"`           // users created at startup; idempotent
-	HeaderPropagation   bool              `yaml:"header_propagation"`   // inject X-User-* headers on /userinfo responses
+	APIKey            string        `yaml:"api_key"`            // empty = local dev mode (no auth); ignored in multi-tenant mode
+	SCIMKey           string        `yaml:"scim_key"`           // separate credential for /scim/v2; falls back to APIKey when empty
+	RateLimit         int           `yaml:"rate_limit"`         // requests/min per IP on /api/v1; 0 = disabled
+	SeedUsers         []SeedUser    `yaml:"seed_users"`         // users created at startup; idempotent
+	HeaderPropagation bool          `yaml:"header_propagation"` // inject X-User-* headers on /userinfo responses
+	Tenancy           TenancyMode   `yaml:"tenancy"`            // "single" (default) or "multi"
+	Tenants           []TenantConfig `yaml:"tenants"`            // populated only in multi mode
 }
 
 type SAMLConfig struct {
@@ -137,6 +155,8 @@ type yamlConfig struct {
 	Cleanup      yamlCleanupDurations `yaml:"cleanup"`
 	OIDC         yamlOIDC             `yaml:"oidc"`
 	SeedUsers    []SeedUser           `yaml:"seed_users"`
+	Tenancy      string               `yaml:"tenancy"`
+	Tenants      []TenantConfig       `yaml:"tenants"`
 }
 
 type yamlOIDC struct {
@@ -234,6 +254,12 @@ func mergeYAML(cfg *Config, from yamlConfig) error {
 	if len(from.SeedUsers) > 0 {
 		cfg.SeedUsers = append(cfg.SeedUsers, from.SeedUsers...)
 	}
+	if from.Tenancy != "" {
+		cfg.Tenancy = TenancyMode(from.Tenancy)
+	}
+	if len(from.Tenants) > 0 {
+		cfg.Tenants = from.Tenants
+	}
 	return nil
 }
 
@@ -307,6 +333,9 @@ func applyEnv(cfg *Config) error {
 		}
 		cfg.HeaderPropagation = b
 	}
+	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_TENANCY")); v != "" {
+		cfg.Tenancy = TenancyMode(v)
+	}
 	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_SEED_USERS")); v != "" {
 		var users []SeedUser
 		if err := yaml.Unmarshal([]byte(v), &users); err != nil {
@@ -360,6 +389,30 @@ func validate(cfg Config) error {
 	}
 	if cfg.Cleanup.SessionTTL <= 0 {
 		return errors.New("cleanup.session_ttl must be > 0")
+	}
+	switch cfg.Tenancy {
+	case "", TenancySingle, TenancyMulti:
+		// valid
+	default:
+		return fmt.Errorf("tenancy must be %q or %q, got %q", TenancySingle, TenancyMulti, cfg.Tenancy)
+	}
+	if cfg.Tenancy == TenancyMulti {
+		if len(cfg.Tenants) == 0 {
+			return errors.New("tenancy: multi requires at least one tenant defined in tenants[]")
+		}
+		seen := make(map[string]bool, len(cfg.Tenants))
+		for i, t := range cfg.Tenants {
+			if t.ID == "" {
+				return fmt.Errorf("tenants[%d].id must not be empty", i)
+			}
+			if t.APIKey == "" {
+				return fmt.Errorf("tenants[%d].api_key must not be empty", i)
+			}
+			if seen[t.ID] {
+				return fmt.Errorf("tenants[%d].id %q is duplicated", i, t.ID)
+			}
+			seen[t.ID] = true
+		}
 	}
 	return nil
 }

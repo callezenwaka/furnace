@@ -17,6 +17,8 @@ import (
 	"authpilot/server/internal/store"
 	"authpilot/server/internal/store/memory"
 	sqliteStore "authpilot/server/internal/store/sqlite"
+	"authpilot/server/internal/store/tenanted"
+	"authpilot/server/internal/tenant"
 	wsfedengine "authpilot/server/internal/wsfed"
 )
 
@@ -76,11 +78,18 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 	}
 	issuer := oidcengine.NewIssuer(km, tokenCfg, cfg.OIDC.IssuerURL)
 
-	scimRouter := scim.NewRouter(scim.RouterDeps{
-		Users:  users,
-		Groups: groups,
-	})
 	cp := &issuerConfigPatcher{issuer: issuer}
+
+	// Build per-tenant store sets and the dispatcher used by handlers.
+	// In single mode there is exactly one tenant ("default") wrapping the raw stores.
+	// In multi mode there is one set per configured tenant plus the default.
+	dispatcher, tenantEntries := buildTenantStores(cfg, users, groups, flows, sessions, auditStore)
+
+	scimRouter := scim.NewRouter(scim.RouterDeps{
+		Users:  dispatcher.ForContext(tenant.WithTenant(context.Background(), tenant.DefaultTenantID)).Users,
+		Groups: dispatcher.ForContext(tenant.WithTenant(context.Background(), tenant.DefaultTenantID)).Groups,
+	})
+
 	router := httpapi.NewRouter(httpapi.Dependencies{
 		Users:         users,
 		Groups:        groups,
@@ -94,6 +103,8 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 		SCIMRouter:    scimRouter,
 		TokenMinter:   &issuerMinter{issuer: issuer},
 		ConfigPatcher: cp,
+		TenantStores:  dispatcher,
+		TenantEntries: tenantEntries,
 	})
 
 	httpServer := &http.Server{
@@ -253,6 +264,53 @@ func (a *App) startCleanupScheduler(ctx context.Context) {
 			}
 		}
 	}()
+}
+
+// buildTenantStores creates the tenanted store dispatcher and the tenant entry
+// list used by the API key middleware.
+//
+// In single mode: one "default" tenant wrapping the raw stores.
+// In multi mode: one set per configured tenant plus "default" as fallback.
+func buildTenantStores(
+	cfg config.Config,
+	users store.UserStore,
+	groups store.GroupStore,
+	flows store.FlowStore,
+	sessions store.SessionStore,
+	audit store.AuditStore,
+) (*tenanted.Dispatcher, []httpapi.TenantEntry) {
+	sets := make(map[string]*tenanted.StoreSet)
+	var entries []httpapi.TenantEntry
+
+	addTenant := func(tid string) {
+		sets[tid] = &tenanted.StoreSet{
+			Users:    tenanted.NewUserStore(users, tid),
+			Groups:   tenanted.NewGroupStore(groups, tid),
+			Flows:    tenanted.NewFlowStore(flows, tid),
+			Sessions: tenanted.NewSessionStore(sessions, tid),
+			Audit:    tenanted.NewAuditStore(audit, tid),
+		}
+	}
+
+	// Always create the default tenant.
+	addTenant(tenant.DefaultTenantID)
+
+	if cfg.Tenancy == config.TenancyMulti {
+		for _, t := range cfg.Tenants {
+			addTenant(t.ID)
+			scimKey := t.SCIMKey
+			if scimKey == "" {
+				scimKey = t.APIKey
+			}
+			entries = append(entries, httpapi.TenantEntry{
+				TenantID: t.ID,
+				APIKey:   t.APIKey,
+				SCIMKey:  scimKey,
+			})
+		}
+	}
+
+	return tenanted.NewDispatcher(sets), entries
 }
 
 // seedUsers upserts each seed user into the store. Create is tried first;

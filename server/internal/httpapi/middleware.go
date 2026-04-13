@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"authpilot/server/internal/tenant"
 )
 
 type contextKey string
@@ -282,6 +284,17 @@ func idempotencyMiddleware(store *idempotencyStore) func(http.Handler) http.Hand
 	}
 }
 
+// extractAPIKey reads the API key from X-Authpilot-Api-Key or Authorization: Bearer <key>.
+func extractAPIKey(r *http.Request) string {
+	if key := r.Header.Get("X-Authpilot-Api-Key"); key != "" {
+		return key
+	}
+	if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {
+		return strings.TrimPrefix(auth, "Bearer ")
+	}
+	return ""
+}
+
 // apiKeyMiddleware protects /api/v1/* routes when a key is configured.
 // If apiKey is empty the middleware is a no-op (local dev mode).
 func apiKeyMiddleware(apiKey string) func(http.Handler) http.Handler {
@@ -291,18 +304,47 @@ func apiKeyMiddleware(apiKey string) func(http.Handler) http.Handler {
 				next.ServeHTTP(w, r)
 				return
 			}
-			key := r.Header.Get("X-Authpilot-Api-Key")
-			if key == "" {
-				auth := r.Header.Get("Authorization")
-				if strings.HasPrefix(auth, "Bearer ") {
-					key = strings.TrimPrefix(auth, "Bearer ")
-				}
-			}
-			if key != apiKey {
+			if extractAPIKey(r) != apiKey {
 				writeAPIError(w, r, http.StatusUnauthorized, "UNAUTHORIZED", "missing or invalid api key", false)
 				return
 			}
 			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// TenantEntry maps an API key to a tenant ID. Used by tenantAPIKeyMiddleware.
+type TenantEntry struct {
+	TenantID string
+	APIKey   string
+	SCIMKey  string
+}
+
+// tenantAPIKeyMiddleware resolves the request's API key to a tenant ID and
+// stores it on the context. Used only in multi-tenant mode.
+func tenantAPIKeyMiddleware(tenants []TenantEntry) func(http.Handler) http.Handler {
+	// Build O(1) lookup maps.
+	byAPIKey := make(map[string]TenantEntry, len(tenants))
+	bySCIMKey := make(map[string]TenantEntry, len(tenants))
+	for _, t := range tenants {
+		byAPIKey[t.APIKey] = t
+		if t.SCIMKey != "" {
+			bySCIMKey[t.SCIMKey] = t
+		}
+	}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			key := extractAPIKey(r)
+			entry, ok := byAPIKey[key]
+			if !ok {
+				entry, ok = bySCIMKey[key]
+			}
+			if !ok {
+				writeAPIError(w, r, http.StatusUnauthorized, "UNAUTHORIZED", "missing or invalid api key", false)
+				return
+			}
+			ctx := tenant.WithTenant(r.Context(), entry.TenantID)
+			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }
