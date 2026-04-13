@@ -21,6 +21,19 @@ import (
 	"authpilot/server/internal/store/tenanted"
 )
 
+// SCIMClient pushes user mutations to an external SCIM server.
+// Implemented by scimclient.Client; nil = SCIM client mode disabled.
+type SCIMClient interface {
+	UserCreated(user domain.User)
+	UserUpdated(user domain.User)
+	UserDeleted(id string)
+}
+
+// SCIMEventLister returns the log of outbound SCIM client requests.
+type SCIMEventLister interface {
+	List() []domain.SCIMEvent
+}
+
 // MintedTokens is the response payload for POST /api/v1/tokens/mint.
 type MintedTokens struct {
 	AccessToken string `json:"access_token"`
@@ -70,6 +83,11 @@ type Dependencies struct {
 	// TenantEntries maps API/SCIM keys to tenant IDs. Used by tenantAPIKeyMiddleware
 	// in multi mode. Nil/empty = single mode.
 	TenantEntries  []TenantEntry
+	// SCIMClient, if non-nil, is called after successful user mutations to push
+	// changes to an external SCIM target. nil = SCIM client mode disabled.
+	SCIMClient     SCIMClient
+	// SCIMEvents, if non-nil, backs GET /api/v1/scim/events.
+	SCIMEvents     SCIMEventLister
 }
 
 // resolveStores returns the correct store set for the request context.
@@ -123,7 +141,7 @@ func NewRouter(dep Dependencies) http.Handler {
 	}).Methods(http.MethodGet)
 	api.HandleFunc("/users", func(w http.ResponseWriter, r *http.Request) {
 		users, _, _, _, as := dep.resolveStores(r.Context())
-		createUserHandler(users, as)(w, r)
+		createUserHandler(users, as, dep.SCIMClient)(w, r)
 	}).Methods(http.MethodPost)
 	api.HandleFunc("/users/{id}", func(w http.ResponseWriter, r *http.Request) {
 		users, _, _, _, _ := dep.resolveStores(r.Context())
@@ -131,11 +149,11 @@ func NewRouter(dep Dependencies) http.Handler {
 	}).Methods(http.MethodGet)
 	api.HandleFunc("/users/{id}", func(w http.ResponseWriter, r *http.Request) {
 		users, _, _, _, as := dep.resolveStores(r.Context())
-		updateUserHandler(users, as)(w, r)
+		updateUserHandler(users, as, dep.SCIMClient)(w, r)
 	}).Methods(http.MethodPut)
 	api.HandleFunc("/users/{id}", func(w http.ResponseWriter, r *http.Request) {
 		users, _, _, _, as := dep.resolveStores(r.Context())
-		deleteUserHandler(users, as)(w, r)
+		deleteUserHandler(users, as, dep.SCIMClient)(w, r)
 	}).Methods(http.MethodDelete)
 
 	api.HandleFunc("/groups", func(w http.ResponseWriter, r *http.Request) {
@@ -227,6 +245,8 @@ func NewRouter(dep Dependencies) http.Handler {
 	}).Methods(http.MethodGet)
 
 	registerDebugRoutes(api, &dep)
+
+	api.HandleFunc("/scim/events", scimEventsHandler(dep.SCIMEvents)).Methods(http.MethodGet)
 
 	// Mount SCIM 2.0 under /scim/v2 with its own credential.
 	if dep.SCIMRouter != nil {
@@ -379,7 +399,7 @@ func listUsersHandler(users store.UserStore) http.HandlerFunc {
 	}
 }
 
-func createUserHandler(users store.UserStore, as store.AuditStore) http.HandlerFunc {
+func createUserHandler(users store.UserStore, as store.AuditStore, sc SCIMClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, ok := decodeUser(w, r.Body)
 		if !ok {
@@ -402,6 +422,9 @@ func createUserHandler(users store.UserStore, as store.AuditStore) http.HandlerF
 			return
 		}
 		audit.Emit(as, audit.EventUserCreated, "system", created.ID, map[string]any{"email": created.Email})
+		if sc != nil {
+			sc.UserCreated(created)
+		}
 		writeJSON(w, http.StatusCreated, created)
 	}
 }
@@ -422,7 +445,7 @@ func getUserHandler(users store.UserStore) http.HandlerFunc {
 	}
 }
 
-func updateUserHandler(users store.UserStore, as store.AuditStore) http.HandlerFunc {
+func updateUserHandler(users store.UserStore, as store.AuditStore, sc SCIMClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, ok := decodeUser(w, r.Body)
 		if !ok {
@@ -443,11 +466,14 @@ func updateUserHandler(users store.UserStore, as store.AuditStore) http.HandlerF
 			return
 		}
 		audit.Emit(as, audit.EventUserUpdated, "system", updated.ID, map[string]any{"email": updated.Email})
+		if sc != nil {
+			sc.UserUpdated(updated)
+		}
 		writeJSON(w, http.StatusOK, updated)
 	}
 }
 
-func deleteUserHandler(users store.UserStore, as store.AuditStore) http.HandlerFunc {
+func deleteUserHandler(users store.UserStore, as store.AuditStore, sc SCIMClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := mux.Vars(r)["id"]
 		if err := users.Delete(id); err != nil {
@@ -459,7 +485,24 @@ func deleteUserHandler(users store.UserStore, as store.AuditStore) http.HandlerF
 			return
 		}
 		audit.Emit(as, audit.EventUserDeleted, "system", id, nil)
+		if sc != nil {
+			sc.UserDeleted(id)
+		}
 		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func scimEventsHandler(events SCIMEventLister) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if events == nil {
+			writeAPIError(w, r, http.StatusNotImplemented, "NOT_IMPLEMENTED", "SCIM client mode is not enabled", false)
+			return
+		}
+		list := events.List()
+		if list == nil {
+			list = []domain.SCIMEvent{}
+		}
+		writeJSON(w, http.StatusOK, list)
 	}
 }
 

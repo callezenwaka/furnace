@@ -70,6 +70,19 @@ type SessionEvent struct {
 	Details   string    `json:"details,omitempty"`
 }
 
+// SCIMEvent records a single outbound SCIM request made when Authpilot runs
+// in client mode (AUTHPILOT_SCIM_MODE=client).
+type SCIMEvent struct {
+	ID             string    `json:"id"`
+	Timestamp      time.Time `json:"timestamp"`
+	Method         string    `json:"method"`
+	URL            string    `json:"url"`
+	RequestBody    string    `json:"request_body,omitempty"`
+	ResponseStatus int       `json:"response_status"`
+	ResponseBody   string    `json:"response_body,omitempty"`
+	Error          string    `json:"error,omitempty"` // set when the HTTP request itself failed
+}
+
 type Session struct {
 	ID           string         `json:"id"`
 	UserID       string         `json:"user_id"`

@@ -57,6 +57,13 @@ type AuditStore interface {
 	List(filter AuditFilter) []domain.AuditEvent
 }
 
+// SCIMEventStore is a write-mostly log of outbound SCIM client requests.
+// Like AuditStore, implementations may cap the log size.
+type SCIMEventStore interface {
+	Append(event domain.SCIMEvent)
+	List() []domain.SCIMEvent
+}
+
 // AuditFilter controls which events List returns.
 type AuditFilter struct {
 	EventType string    // empty = all

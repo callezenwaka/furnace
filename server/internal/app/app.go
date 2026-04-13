@@ -15,6 +15,7 @@ import (
 	"authpilot/server/internal/personality"
 	samlengine "authpilot/server/internal/saml"
 	"authpilot/server/internal/scim"
+	"authpilot/server/internal/scimclient"
 	"authpilot/server/internal/store"
 	"authpilot/server/internal/store/memory"
 	sqliteStore "authpilot/server/internal/store/sqlite"
@@ -62,6 +63,7 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 	flows := memory.NewFlowStore()
 	sessions := memory.NewSessionStore()
 	auditStore := memory.NewAuditStore(auditCap)
+	scimEventStore := memory.NewSCIMEventStore(auditCap)
 
 	if err := seedUsers(users, cfg.SeedUsers); err != nil {
 		return nil, fmt.Errorf("seed users: %w", err)
@@ -96,6 +98,11 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 		Groups: dispatcher.ForContext(tenant.WithTenant(context.Background(), tenant.DefaultTenantID)).Groups,
 	})
 
+	var scimCl httpapi.SCIMClient
+	if cfg.SCIMClientMode {
+		scimCl = scimclient.New(cfg.SCIMTargetURL, scimEventStore)
+	}
+
 	router := httpapi.NewRouter(httpapi.Dependencies{
 		Users:         users,
 		Groups:        groups,
@@ -111,6 +118,8 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 		ConfigPatcher: cp,
 		TenantStores:  dispatcher,
 		TenantEntries: tenantEntries,
+		SCIMClient:    scimCl,
+		SCIMEvents:    scimEventStore,
 	})
 
 	httpServer := &http.Server{

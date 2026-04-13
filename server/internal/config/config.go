@@ -58,6 +58,8 @@ type Config struct {
 	Tenancy           TenancyMode    `yaml:"tenancy"`            // "single" (default) or "multi"
 	Tenants           []TenantConfig `yaml:"tenants"`            // populated only in multi mode
 	Provider          string         `yaml:"provider"`           // personality ID: "default", "okta", "azure-ad", etc.
+	SCIMClientMode    bool           `yaml:"scim_client_mode"`   // true when AUTHPILOT_SCIM_MODE=client
+	SCIMTargetURL     string         `yaml:"scim_target_url"`    // AUTHPILOT_SCIM_TARGET; required when SCIMClientMode=true
 }
 
 type SAMLConfig struct {
@@ -156,9 +158,11 @@ type yamlConfig struct {
 	Cleanup      yamlCleanupDurations `yaml:"cleanup"`
 	OIDC         yamlOIDC             `yaml:"oidc"`
 	SeedUsers    []SeedUser           `yaml:"seed_users"`
-	Tenancy      string               `yaml:"tenancy"`
-	Tenants      []TenantConfig       `yaml:"tenants"`
-	Provider     string               `yaml:"provider"`
+	Tenancy        string               `yaml:"tenancy"`
+	Tenants        []TenantConfig       `yaml:"tenants"`
+	Provider       string               `yaml:"provider"`
+	SCIMClientMode bool                 `yaml:"scim_client_mode"`
+	SCIMTargetURL  string               `yaml:"scim_target_url"`
 }
 
 type yamlOIDC struct {
@@ -265,6 +269,12 @@ func mergeYAML(cfg *Config, from yamlConfig) error {
 	if from.Provider != "" {
 		cfg.Provider = from.Provider
 	}
+	if from.SCIMClientMode {
+		cfg.SCIMClientMode = true
+	}
+	if from.SCIMTargetURL != "" {
+		cfg.SCIMTargetURL = from.SCIMTargetURL
+	}
 	return nil
 }
 
@@ -344,6 +354,12 @@ func applyEnv(cfg *Config) error {
 	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_PROVIDER")); v != "" {
 		cfg.Provider = v
 	}
+	if strings.ToLower(strings.TrimSpace(os.Getenv("AUTHPILOT_SCIM_MODE"))) == "client" {
+		cfg.SCIMClientMode = true
+	}
+	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_SCIM_TARGET")); v != "" {
+		cfg.SCIMTargetURL = v
+	}
 	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_SEED_USERS")); v != "" {
 		var users []SeedUser
 		if err := yaml.Unmarshal([]byte(v), &users); err != nil {
@@ -403,6 +419,9 @@ func validate(cfg Config) error {
 		// valid
 	default:
 		return fmt.Errorf("tenancy must be %q or %q, got %q", TenancySingle, TenancyMulti, cfg.Tenancy)
+	}
+	if cfg.SCIMClientMode && strings.TrimSpace(cfg.SCIMTargetURL) == "" {
+		return errors.New("scim_target_url (AUTHPILOT_SCIM_TARGET) is required when scim_client_mode is enabled")
 	}
 	if cfg.Tenancy == TenancyMulti {
 		if len(cfg.Tenants) == 0 {
