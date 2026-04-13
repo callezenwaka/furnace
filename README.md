@@ -7,7 +7,7 @@ A local-first authentication development platform. Build and test OIDC flows aga
 | Port | Purpose |
 |------|---------|
 | `:8025` | Web UI, admin SPA, management API |
-| `:8026` | OIDC and SAML protocol endpoints |
+| `:8026` | OIDC, SAML, WS-Fed protocol endpoints |
 
 ## Quick Start
 
@@ -31,6 +31,9 @@ docker compose up --build
 
 | Target | Description |
 |--------|-------------|
+| `make build` | Compile the binary |
+| `make test` | Run all tests |
+| `make lint` | Run golangci-lint |
 | `make run` | Start on dev-safe ports (`:18025` / `:18026`) |
 | `make run-default` | Start on default ports (`:8025` / `:8026`) |
 | `make run-auto` | Try default ports, fall back to dev-safe ports |
@@ -71,16 +74,76 @@ Config precedence: runtime flags > environment variables > YAML file > defaults.
 | `AUTHPILOT_PERSISTENCE_ENABLED` | `false` | Enable SQLite persistence for users/groups |
 | `AUTHPILOT_SQLITE_PATH` | `./data/authpilot.db` | SQLite database path |
 | `AUTHPILOT_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, or `error` |
-| `AUTHPILOT_API_KEY` | _(unset)_ | Protect `/api/v1` with a static key (see below) |
-| `AUTHPILOT_SAML_ENTITY_ID` | `http://localhost:8026` | SAML IdP entity ID in metadata and assertions |
-| `AUTHPILOT_SAML_CERT_DIR` | _(unset)_ | Directory to persist the SAML signing key and certificate across restarts |
-| `AUTHPILOT_RATE_LIMIT` | `0` (disabled) | Requests per minute per IP on `/api/v1`; `0` disables rate limiting |
+| `AUTHPILOT_API_KEY` | _(unset)_ | Protect `/api/v1` with a static key |
+| `AUTHPILOT_SCIM_KEY` | _(unset)_ | Separate bearer key for `/scim/v2`; falls back to `API_KEY` |
+| `AUTHPILOT_SAML_ENTITY_ID` | `http://localhost:8026` | SAML IdP entity ID |
+| `AUTHPILOT_SAML_CERT_DIR` | _(unset)_ | Persist SAML signing key and cert across restarts |
+| `AUTHPILOT_RATE_LIMIT` | `0` (disabled) | Requests per minute per IP on `/api/v1` |
+| `AUTHPILOT_PROVIDER` | `default` | Active provider personality: `okta`, `azure-ad`, `google-workspace`, `github`, `onelogin` |
+| `AUTHPILOT_TENANCY` | `single` | `single` or `multi`; multi mode requires a `tenants:` block in YAML |
+| `AUTHPILOT_SCIM_MODE` | _(unset)_ | Set to `client` to push user mutations to an external SCIM target |
+| `AUTHPILOT_SCIM_TARGET` | _(unset)_ | External SCIM base URL (required when `AUTHPILOT_SCIM_MODE=client`) |
+| `AUTHPILOT_HEADER_PROPAGATION` | `false` | Inject `X-User-ID`, `X-User-Email`, `X-User-Groups` on `/userinfo` responses |
+| `AUTHPILOT_SEED_USERS` | _(unset)_ | Inline YAML list of users to create at startup |
 
 Enable persistence:
 
 ```bash
 go run ./server/cmd/authpilot -persistence-enabled=true -sqlite-path ./data/authpilot.db
 ```
+
+### Provider Personality
+
+Switch the claim shape Authpilot issues to match a target IdP:
+
+```bash
+AUTHPILOT_PROVIDER=azure-ad go run ./server/cmd/authpilot
+```
+
+| Provider | Key remappings |
+|----------|---------------|
+| `default` | Standard OIDC (`email`, `name`, `sub`) |
+| `azure-ad` | `preferred_username`, `tid` tenant claim |
+| `okta` | `login`, `groups` array |
+| `google-workspace` | `email`, `email_verified`, `hd` hosted domain |
+| `github` | `login`, `avatar_url` |
+| `onelogin` | `email`, `name` with OneLogin extras |
+
+### Multi-Tenancy
+
+```yaml
+# authpilot.yaml
+tenancy: multi
+tenants:
+  - id: acme
+    api_key: key-acme
+    scim_key: scim-acme
+  - id: widgets
+    api_key: key-widgets
+```
+
+Each tenant's API key scopes all store operations to that tenant. Single-mode behaviour is unchanged.
+
+### SCIM Client Mode
+
+Push user mutations to an external SCIM provider:
+
+```bash
+AUTHPILOT_SCIM_MODE=client \
+AUTHPILOT_SCIM_TARGET=https://scim.example.com/v2 \
+go run ./server/cmd/authpilot
+```
+
+Outbound requests are non-blocking — SCIM push failures are logged but do not fail management API calls. View the event log at `GET /api/v1/scim/events`.
+
+### Seed Users
+
+```bash
+AUTHPILOT_SEED_USERS='[{email: alice@example.com, display_name: Alice, active: true}]' \
+go run ./server/cmd/authpilot
+```
+
+Users are upserted idempotently at startup — safe to restart without duplicates.
 
 ## OIDC Endpoints
 
@@ -92,7 +155,8 @@ Served on `:8026`.
 | `/.well-known/jwks.json` | GET | Public signing keys |
 | `/authorize` | GET | Start authorization (redirects to `/login`) |
 | `/authorize/complete` | GET | Issue auth code after login completes |
-| `/token` | POST | Exchange code for tokens |
+| `/oauth2/token` | POST | Exchange code for tokens; refresh token grant |
+| `/oauth2/introspect` | POST | RFC 7662 token introspection |
 | `/userinfo` | GET | User profile (Bearer token required) |
 | `/revoke` | POST | Token revocation |
 
@@ -117,8 +181,6 @@ Configure your SP with:
 - **Metadata URL:** `http://localhost:8026/saml/metadata`
 - **Signing Certificate:** `http://localhost:8026/saml/cert`
 
-Assertions are signed with RSA-SHA256 using Exclusive XML Canonicalization (exc-c14n), the standard used by most SPs. A self-signed certificate is generated at startup and is ephemeral by default — set `AUTHPILOT_SAML_CERT_DIR` to persist the key and certificate across restarts. Override the entity ID with `AUTHPILOT_SAML_ENTITY_ID` if your SP requires a specific value.
-
 To trigger IdP-initiated logout for a user:
 
 ```bash
@@ -127,7 +189,7 @@ curl http://localhost:8026/saml/slo?user_id=<user-id>
 
 ## SCIM 2.0 Endpoints
 
-Served on `:8025` under `/scim/v2`. Backed by the same user and group stores as the management API. Obeys the same API key protection when `AUTHPILOT_API_KEY` is set.
+Served on `:8025` under `/scim/v2`. Backed by the same user and group stores as the management API. Obeys the same API key protection when `AUTHPILOT_SCIM_KEY` (or `AUTHPILOT_API_KEY`) is set.
 
 | Endpoint | Methods | Description |
 |----------|---------|-------------|
@@ -143,7 +205,7 @@ PATCH supports `add`, `replace`, and `remove` operations on members. Filter supp
 
 ## WS-Federation Endpoints
 
-Served on `:8026` alongside OIDC and SAML. Implements the WS-Federation Passive Requestor Profile for legacy Azure AD / ADFS integrations. Reuses the SAML signing certificate.
+Served on `:8026` alongside OIDC and SAML.
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
@@ -155,8 +217,6 @@ Configure your relying party with:
 - **Federation Metadata URL:** `http://localhost:8026/federationmetadata/2007-06/federationmetadata.xml`
 - **Token type:** SAML 1.1 (signed with RSA-SHA256, exc-c14n)
 
-The sign-in flow redirects to `/login`, completes the Authpilot flow, then posts a signed WS-Trust `RequestSecurityTokenResponse` back to the relying party's reply URL. Sign-out (`wa=wsignout1.0`) invalidates all sessions and redirects to `wreply` if provided.
-
 ## Management API
 
 Served on `:8025` under `/api/v1`. Every response includes an `X-Request-ID` header for log correlation.
@@ -166,10 +226,15 @@ Served on `:8025` under `/api/v1`. Every response includes an `X-Request-ID` hea
 | Users | `GET/POST /api/v1/users`, `GET/PUT/DELETE /api/v1/users/{id}` |
 | Groups | `GET/POST /api/v1/groups`, `GET/PUT/DELETE /api/v1/groups/{id}` |
 | Flows | `GET/POST /api/v1/flows`, `GET /api/v1/flows/{id}` |
-| Flow actions | `POST /api/v1/flows/{id}/select-user` · `verify-mfa` · `approve` · `deny` |
+| Flow actions | `POST /api/v1/flows/{id}/select-user` · `verify-mfa` · `approve` · `deny` · `webauthn-response` |
 | Sessions | `GET /api/v1/sessions` |
 | Notifications | `GET /api/v1/notifications?flow_id=<id>`, `GET /api/v1/notifications/all` |
+| Audit | `GET /api/v1/audit`, `GET /api/v1/audit/export?format=<fmt>` |
+| Tokens | `POST /api/v1/tokens/mint` |
+| Config | `GET /api/v1/config`, `PATCH /api/v1/config` |
+| SCIM events | `GET /api/v1/scim/events` |
 | Export | `GET /api/v1/export?format=<fmt>` |
+| Debug | `GET /api/v1/debug/token-compare` |
 | API contract | `GET /api/v1/openapi.json`, `GET /api/v1/docs` |
 
 ### Export
@@ -190,21 +255,66 @@ curl http://localhost:8025/api/v1/export?format=azure -o azure-users.json
 curl http://localhost:8025/api/v1/export?format=google -o google-users.csv
 ```
 
-Supported formats: `scim`, `okta`, `azure`, `google`. The response includes a `Content-Disposition` header with a timestamped filename.
+### Audit
+
+```bash
+# All events
+curl http://localhost:8025/api/v1/audit
+
+# Filter by type and time window
+curl "http://localhost:8025/api/v1/audit?event_type=user.created&since=2026-01-01T00:00:00Z"
+
+# Export as JSON-ND (Splunk/Elastic), CEF (ArcSight), or Syslog (RFC 5424)
+curl http://localhost:8025/api/v1/audit/export?format=json-nd -o audit.jsonl
+curl http://localhost:8025/api/v1/audit/export?format=cef -o audit.cef
+curl http://localhost:8025/api/v1/audit/export?format=syslog -o audit.log
+```
+
+### Token Minting
+
+Mint tokens for a user without running the full OAuth flow — useful for CI/CD tests:
+
+```bash
+curl -X POST http://localhost:8025/api/v1/tokens/mint \
+  -H "Content-Type: application/json" \
+  -d '{"user_id": "usr_123", "client_id": "myapp", "expires_in": 3600}'
+```
+
+### Token Compare (Debug)
+
+Compare the claim shape of an Authpilot token against a real provider token:
+
+```bash
+curl "http://localhost:8025/api/v1/debug/token-compare?authpilot_token=eyJ...&provider_token=eyJ..."
+```
+
+Returns a `differences` array with `path`, `authpilot_value`, `provider_value`, and `note` for each divergent claim.
+
+### Live Config
+
+Read and update token TTLs without restarting:
+
+```bash
+# Read current TTLs
+curl http://localhost:8025/api/v1/config
+
+# Update access token TTL
+curl -X PATCH http://localhost:8025/api/v1/config \
+  -H "Content-Type: application/json" \
+  -d '{"tokens": {"access_token_ttl": 7200}}'
+```
 
 ### OpenAPI
-
-The full API contract is available as an OpenAPI 3.1 document:
 
 ```bash
 curl http://localhost:8025/api/v1/openapi.json
 ```
 
-An interactive Swagger UI is served at `http://localhost:8025/api/v1/docs`.
+Interactive Swagger UI: `http://localhost:8025/api/v1/docs`
 
 ### Idempotency
 
-All `POST` endpoints on `/api/v1` support idempotency keys to make retries safe:
+All `POST` endpoints on `/api/v1` support idempotency keys:
 
 ```bash
 curl -X POST http://localhost:8025/api/v1/users \
@@ -215,43 +325,39 @@ curl -X POST http://localhost:8025/api/v1/users \
 
 Repeat the same request within 5 minutes with the same key — the handler runs once and subsequent calls return the cached response with an `Idempotent-Replayed: true` header.
 
-### Rate limiting
-
-Set `AUTHPILOT_RATE_LIMIT` to cap requests per minute per IP on the management API:
+### Rate Limiting
 
 ```bash
 AUTHPILOT_RATE_LIMIT=60 go run ./server/cmd/authpilot
 ```
 
-Requests over the limit receive `429 Too Many Requests` with a `RATE_LIMITED` error code. Rate limiting is disabled when the value is `0` (default).
+Requests over the limit receive `429 Too Many Requests` with `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`, and `Retry-After` headers.
 
-Errors follow a standard envelope:
+### Protected Mode
+
+```bash
+AUTHPILOT_API_KEY=mysecret go run ./server/cmd/authpilot
+```
+
+```bash
+curl -H "X-Authpilot-Api-Key: mysecret" http://localhost:8025/api/v1/users
+# or
+curl -H "Authorization: Bearer mysecret" http://localhost:8025/api/v1/users
+```
+
+### Error Envelope
 
 ```json
 {
   "error": {
     "code": "FLOW_NOT_FOUND",
     "message": "flow not found",
-    "retryable": false
+    "retryable": false,
+    "docs_url": "/admin/docs/errors#flow_not_found",
+    "details": {"flow_id": "abc123"}
   },
   "request_id": "req_01abc..."
 }
-```
-
-### Protected mode
-
-By default the management API is open (local dev). To require authentication, set `AUTHPILOT_API_KEY`:
-
-```bash
-AUTHPILOT_API_KEY=mysecret go run ./server/cmd/authpilot
-```
-
-Then pass the key on every request:
-
-```bash
-curl -H "X-Authpilot-Api-Key: mysecret" http://localhost:8025/api/v1/users
-# or
-curl -H "Authorization: Bearer mysecret" http://localhost:8025/api/v1/users
 ```
 
 ## Login Simulation
@@ -274,6 +380,7 @@ MFA methods available (set on user):
 | `push` | Approve/deny push notification; visible in Notification Hub |
 | `sms` | 6-digit code sent to phone; visible in Notification Hub |
 | `magic_link` | One-click sign-in link; visible in Notification Hub |
+| `webauthn` | Passkey simulation; challenge visible in Notification Hub |
 
 ## Admin UI
 
@@ -288,10 +395,16 @@ Then visit `http://localhost:8025/admin`. Re-run after code changes if the page 
 - **Users** — list, search, create, edit, delete
 - **Groups** — list, create, edit (including member IDs), delete
 - **Sessions** — list with expandable detail rows
+- **Audit Log** — filterable event table with event type and time range filters (`/admin/audit`)
+- **Config** — live token TTL editor and provider personality switcher (`/admin/config`)
+- **Token Diff** — side-by-side claim comparison between Authpilot and provider tokens (`/admin/diff`)
+- **SCIM** — SCIM client mode event log; expandable request/response rows (`/admin/scim`)
+
+A tenant selector in the topbar switches context in multi-tenant mode.
 
 ## Notification Hub
 
-The notification hub intercepts outbound MFA messages (TOTP codes, push requests, SMS codes, magic links) during local testing — no real delivery provider needed.
+The notification hub intercepts outbound MFA messages during local testing — no real delivery provider needed.
 
 ```bash
 make notify-build
@@ -304,8 +417,94 @@ Then visit `http://localhost:8025/notify`. Re-run after code changes if the page
 - **Push** — pending push approvals; approve or deny
 - **SMS** — outbound SMS codes; copy to paste into the MFA page
 - **Magic Links** — one-click sign-in links; click to complete login
+- **Passkeys** — WebAuthn simulation; challenge display and one-click authenticate
 
 The hub polls `/api/v1/notifications/all` every 3 seconds.
+
+## Header Propagation
+
+Enable `X-User-*` headers on `/userinfo` responses for service mesh and nginx `auth_request` patterns:
+
+```bash
+AUTHPILOT_HEADER_PROPAGATION=true go run ./server/cmd/authpilot
+```
+
+Headers injected: `X-User-ID`, `X-User-Email`, `X-User-Groups` (comma-joined).
+
+## Ecosystem Components
+
+### Helm Chart
+
+```bash
+helm install authpilot ./deploy/helm/authpilot \
+  --set config.apiKey=mysecret \
+  --set image.tag=v0.1.0
+```
+
+```bash
+helm upgrade authpilot ./deploy/helm/authpilot --set image.tag=v0.2.0
+```
+
+Key values: `persistence.enabled`, `replicaCount`, `image.tag`, `config.apiKey`, `config.provider`, `config.tenancy`, `seedUsers`.
+
+### Terraform Provider
+
+```hcl
+terraform {
+  required_providers {
+    authpilot = {
+      source = "callezenwaka/authpilot"
+    }
+  }
+}
+
+provider "authpilot" {
+  base_url = "http://localhost:8025"
+  api_key  = "mysecret"
+}
+
+resource "authpilot_user" "alice" {
+  email        = "alice@example.com"
+  display_name = "Alice"
+  active       = true
+}
+```
+
+```bash
+terraform import authpilot_user.alice usr_123
+```
+
+### Kubernetes Operator
+
+Apply a user manifest — the operator syncs it to Authpilot via SCIM:
+
+```yaml
+apiVersion: authpilot.io/v1alpha1
+kind: AuthpilotUser
+metadata:
+  name: alice
+spec:
+  email: alice@example.com
+  displayName: Alice
+  active: true
+```
+
+```bash
+kubectl apply -f alice.yaml
+```
+
+Configure the operator with `AUTHPILOT_SCIM_URL` and `AUTHPILOT_SCIM_KEY` environment variables (typically mounted from a Kubernetes Secret).
+
+## Release Versioning
+
+Each component uses path-prefixed git tags. Pushing a tag triggers its own workflow:
+
+| Tag pattern | Workflow | Artifact |
+|-------------|----------|----------|
+| `server/v*` | `release-server.yml` | GitHub Release + `ghcr.io/<owner>/authpilot:<version>` |
+| `helm/v*` | `release-helm.yml` | Helm chart published to GitHub Pages |
+| `terraform/v*` | `release-terraform.yml` | Terraform provider binaries (GPG-signed) |
+| `operator/v*` | `release-operator.yml` | `ghcr.io/<owner>/authpilot-operator:<version>` |
 
 ## Folder Structure
 
@@ -318,20 +517,28 @@ The hub polls `/api/v1/notifications/all` every 3 seconds.
 │   ├── cmd/authpilot/    # Binary entrypoint
 │   ├── internal/
 │   │   ├── app/          # Startup wiring
-│   │   ├── config/       # Config loading
+│   │   ├── audit/        # Audit event helpers and constants
+│   │   ├── config/       # Config loading and validation
 │   │   ├── domain/       # Core models
+│   │   ├── export/       # Migration export formatters (SCIM, Okta, Azure, Google)
 │   │   ├── flow/         # Flow state machine
 │   │   ├── httpapi/      # Web UI and management API handlers
 │   │   ├── notify/       # MFA notification payload generation
 │   │   ├── oidc/         # OIDC engine
+│   │   ├── personality/  # Provider personality claim mappings
 │   │   ├── saml/         # SAML 2.0 engine
 │   │   ├── scim/         # SCIM 2.0 provisioning engine
+│   │   ├── scimclient/   # SCIM client mode (outbound push)
+│   │   ├── tenant/       # Multi-tenant context helpers
 │   │   ├── wsfed/        # WS-Federation passive requestor engine
-│   │   └── store/        # Memory and SQLite stores
+│   │   └── store/        # Memory, SQLite, and tenanted store wrappers
 │   └── web/
 │       ├── static/       # Built SPA assets
 │       └── templates/    # Server-rendered login pages
 ├── configs/              # Example YAML configs
-├── deploy/               # Deployment files
+├── deploy/
+│   └── helm/authpilot/   # Helm chart
+├── operator/             # Kubernetes operator (controller-runtime)
+├── terraform/            # Terraform provider (Plugin Framework)
 └── scripts/              # Helper scripts
 ```
