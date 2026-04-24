@@ -10,8 +10,8 @@ import (
 	"syscall"
 	"time"
 
-	"authpilot/server/internal/app"
-	"authpilot/server/internal/config"
+	"furnace/server/internal/app"
+	"furnace/server/internal/config"
 )
 
 func main() {
@@ -69,7 +69,7 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	logger.Info("authpilot starting",
+	logger.Info("furnace starting",
 		"http_addr", cfg.HTTPAddr,
 		"protocol_addr", cfg.ProtocolAddr,
 		"persistence_enabled", cfg.Persistence.Enabled,

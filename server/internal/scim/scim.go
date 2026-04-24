@@ -12,8 +12,8 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"authpilot/server/internal/domain"
-	"authpilot/server/internal/store"
+	"furnace/server/internal/domain"
+	"furnace/server/internal/store"
 )
 
 // RouterDeps are the dependencies required by the SCIM router.

@@ -14,12 +14,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	v1alpha1 "github.com/callezenwaka/authpilot-operator/api/v1alpha1"
+	v1alpha1 "github.com/callezenwaka/furnace-operator/api/v1alpha1"
 )
 
-const groupFinalizerName = "authpilot.io/group-finalizer"
+const groupFinalizerName = "furnace.io/group-finalizer"
 
-// GroupReconciler reconciles AuthpilotGroup objects.
+// GroupReconciler reconciles FurnaceGroup objects.
 type GroupReconciler struct {
 	client.Client
 	Scheme  *runtime.Scheme
@@ -38,14 +38,14 @@ func NewGroupReconciler(c client.Client, scheme *runtime.Scheme, scimURL, scimKe
 	}
 }
 
-// +kubebuilder:rbac:groups=authpilot.io,resources=authpilotgroups,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=authpilot.io,resources=authpilotgroups/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=authpilot.io,resources=authpilotgroups/finalizers,verbs=update
+// +kubebuilder:rbac:groups=furnace.io,resources=furnacegroups,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=furnace.io,resources=furnacegroups/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=furnace.io,resources=furnacegroups/finalizers,verbs=update
 
 func (r *GroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
-	var group v1alpha1.AuthpilotGroup
+	var group v1alpha1.FurnaceGroup
 	if err := r.Get(ctx, req.NamespacedName, &group); err != nil {
 		if errors.IsNotFound(err) {
 			return ctrl.Result{}, nil
@@ -57,7 +57,7 @@ func (r *GroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	if !group.DeletionTimestamp.IsZero() {
 		if controllerutil.ContainsFinalizer(&group, groupFinalizerName) {
 			if err := r.scimDeleteGroup(ctx, group.Name); err != nil {
-				logger.Error(err, "failed to delete group from Authpilot")
+				logger.Error(err, "failed to delete group from Furnace")
 				return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 			}
 			controllerutil.RemoveFinalizer(&group, groupFinalizerName)
@@ -78,26 +78,26 @@ func (r *GroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 	// Upsert: try PUT first (idempotent), fall back to POST on 404.
 	if err := r.scimUpsertGroup(ctx, &group); err != nil {
-		logger.Error(err, "failed to upsert group in Authpilot")
+		logger.Error(err, "failed to upsert group in Furnace")
 		r.setGroupCondition(&group, "Ready", metav1.ConditionFalse, "SCIMError", err.Error())
 		_ = r.Status().Update(ctx, &group)
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
-	r.setGroupCondition(&group, "Ready", metav1.ConditionTrue, "Synced", "group synced to Authpilot")
+	r.setGroupCondition(&group, "Ready", metav1.ConditionTrue, "Synced", "group synced to Furnace")
 	_ = r.Status().Update(ctx, &group)
 	return ctrl.Result{}, nil
 }
 
 func (r *GroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.AuthpilotGroup{}).
+		For(&v1alpha1.FurnaceGroup{}).
 		Complete(r)
 }
 
 // ── SCIM helpers ─────────────────────────────────────────────────────────────
 
-func (r *GroupReconciler) scimUpsertGroup(ctx context.Context, group *v1alpha1.AuthpilotGroup) error {
+func (r *GroupReconciler) scimUpsertGroup(ctx context.Context, group *v1alpha1.FurnaceGroup) error {
 	body := map[string]any{
 		"schemas":     []string{"urn:ietf:params:scim:schemas:core:2.0:Group"},
 		"id":          group.Name,
@@ -147,7 +147,7 @@ func (r *GroupReconciler) scimGroupRequest(ctx context.Context, method, path str
 	return ur.scimRequest(ctx, method, path, body)
 }
 
-func (r *GroupReconciler) setGroupCondition(group *v1alpha1.AuthpilotGroup, condType string, status metav1.ConditionStatus, reason, message string) {
+func (r *GroupReconciler) setGroupCondition(group *v1alpha1.FurnaceGroup, condType string, status metav1.ConditionStatus, reason, message string) {
 	now := metav1.Now()
 	for i, c := range group.Status.Conditions {
 		if c.Type == condType {

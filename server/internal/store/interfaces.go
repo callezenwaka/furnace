@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	"authpilot/server/internal/domain"
+	"furnace/server/internal/domain"
 )
 
 var ErrNotFound = errors.New("not found")

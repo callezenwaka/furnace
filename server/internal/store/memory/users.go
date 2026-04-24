@@ -4,8 +4,8 @@ import (
 	"sort"
 	"sync"
 
-	"authpilot/server/internal/domain"
-	"authpilot/server/internal/store"
+	"furnace/server/internal/domain"
+	"furnace/server/internal/store"
 )
 
 type UserStore struct {

@@ -65,7 +65,7 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: "0"
-        run: go build -o /dev/null ./server/cmd/authpilot
+        run: go build -o /dev/null ./server/cmd/furnace
 
   # ── Admin SPA ────────────────────────────────────────────────────────────
   admin-spa:
@@ -119,4 +119,4 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build image
-        run: docker build -t authpilot:ci .
+        run: docker build -t furnace:ci .

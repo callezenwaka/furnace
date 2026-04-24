@@ -9,9 +9,9 @@ build ?=
 WATCH ?= 0
 ALL ?= 0
 all ?=
-PID_FILE ?= .authpilot.pid
+PID_FILE ?= .furnace.pid
 HEALTH_URL ?= http://127.0.0.1$(RUN_HTTP_ADDR)/health
-BG_BIN ?= .tmp/authpilot
+BG_BIN ?= .tmp/furnace
 
 ifneq ($(strip $(all)),)
 ALL := $(all)
@@ -22,7 +22,7 @@ BUILD := $(build)
 endif
 
 build:
-	go build ./server/cmd/authpilot
+	go build ./server/cmd/furnace
 
 test:
 	go test ./server/...
@@ -47,7 +47,7 @@ run: check-ports
 		$(MAKE) admin-build; \
 	fi
 	@mkdir -p .tmp
-	@echo "Starting Authpilot on HTTP $(RUN_HTTP_ADDR) and protocol $(RUN_PROTOCOL_ADDR)"
+	@echo "Starting Furnace on HTTP $(RUN_HTTP_ADDR) and protocol $(RUN_PROTOCOL_ADDR)"
 	@echo "Health check: curl -i $(HEALTH_URL)"
 	@echo "Admin URL: http://127.0.0.1$(RUN_HTTP_ADDR)/admin"
 	@echo "Stop: press Ctrl+C"
@@ -55,12 +55,12 @@ run: check-ports
 		echo "Starting admin SPA watch build (log: .tmp/admin-watch.log)"; \
 		cd client/admin-spa && npm install && npm run build -- --watch > ../../.tmp/admin-watch.log 2>&1 & watcher_pid=$$!; \
 		trap 'kill $$watcher_pid 2>/dev/null || true' INT TERM EXIT; \
-		go run ./server/cmd/authpilot -http-addr $(RUN_HTTP_ADDR) -protocol-addr $(RUN_PROTOCOL_ADDR); \
+		go run ./server/cmd/furnace -http-addr $(RUN_HTTP_ADDR) -protocol-addr $(RUN_PROTOCOL_ADDR); \
 		status=$$?; \
 		kill $$watcher_pid 2>/dev/null || true; \
 		exit $$status; \
 	else \
-		go run ./server/cmd/authpilot -http-addr $(RUN_HTTP_ADDR) -protocol-addr $(RUN_PROTOCOL_ADDR); \
+		go run ./server/cmd/furnace -http-addr $(RUN_HTTP_ADDR) -protocol-addr $(RUN_PROTOCOL_ADDR); \
 	fi
 
 run-auto:
@@ -87,32 +87,32 @@ run-auto:
 		echo "Starting admin SPA watch build (log: .tmp/admin-watch.log)"; \
 		cd client/admin-spa && npm install && npm run build -- --watch > ../../.tmp/admin-watch.log 2>&1 & watcher_pid=$$!; \
 		trap 'kill $$watcher_pid 2>/dev/null || true' INT TERM EXIT; \
-		go run ./server/cmd/authpilot -http-addr $$http_addr -protocol-addr $$protocol_addr; \
+		go run ./server/cmd/furnace -http-addr $$http_addr -protocol-addr $$protocol_addr; \
 		status=$$?; \
 		kill $$watcher_pid 2>/dev/null || true; \
 		exit $$status; \
 	else \
-		go run ./server/cmd/authpilot -http-addr $$http_addr -protocol-addr $$protocol_addr; \
+		go run ./server/cmd/furnace -http-addr $$http_addr -protocol-addr $$protocol_addr; \
 	fi
 
 run-default:
-	go run ./server/cmd/authpilot
+	go run ./server/cmd/furnace
 
 run-bg: check-ports
 	@if [ "$(BUILD)" = "1" ] || [ "$(BUILD)" = "true" ]; then \
 		$(MAKE) admin-build; \
 	fi
 	@mkdir -p .tmp
-	@go build -o $(BG_BIN) ./server/cmd/authpilot
-	@nohup $(BG_BIN) -http-addr $(RUN_HTTP_ADDR) -protocol-addr $(RUN_PROTOCOL_ADDR) > .tmp/authpilot.log 2>&1 & echo $$! > $(PID_FILE)
+	@go build -o $(BG_BIN) ./server/cmd/furnace
+	@nohup $(BG_BIN) -http-addr $(RUN_HTTP_ADDR) -protocol-addr $(RUN_PROTOCOL_ADDR) > .tmp/furnace.log 2>&1 & echo $$! > $(PID_FILE)
 	@sleep 1
 	@if ! curl -fsS $(HEALTH_URL) >/dev/null; then \
-		echo "authpilot failed to start; showing log tail"; \
-		tail -n 40 .tmp/authpilot.log || true; \
+		echo "furnace failed to start; showing log tail"; \
+		tail -n 40 .tmp/furnace.log || true; \
 		exit 1; \
 	fi
-	@echo "authpilot started in background (pid $$(cat $(PID_FILE)))"
-	@echo "logs: .tmp/authpilot.log"
+	@echo "furnace started in background (pid $$(cat $(PID_FILE)))"
+	@echo "logs: .tmp/furnace.log"
 
 stop:
 	@stopped=0; \
@@ -120,7 +120,7 @@ stop:
 		pid=$$(cat $(PID_FILE)); \
 		kill $$pid 2>/dev/null || true; \
 		rm -f $(PID_FILE); \
-		echo "authpilot stopped (pid $$pid)"; \
+		echo "furnace stopped (pid $$pid)"; \
 		stopped=1; \
 	fi; \
 	for addr in "$(RUN_HTTP_ADDR)" "$(RUN_PROTOCOL_ADDR)"; do \
@@ -141,7 +141,7 @@ stop:
 				stopped=1; \
 			fi; \
 		done; \
-		for pattern in '/server/cmd/authpilot' '/.tmp/authpilot' '/Library/Caches/go-build/.*/authpilot'; do \
+		for pattern in '/server/cmd/furnace' '/.tmp/furnace' '/Library/Caches/go-build/.*/furnace'; do \
 			pids=$$(pgrep -f "$$pattern" 2>/dev/null || true); \
 			if [ -n "$$pids" ]; then \
 				kill $$pids 2>/dev/null || true; \

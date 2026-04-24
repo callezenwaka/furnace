@@ -2,12 +2,12 @@ package oidc_test
 
 // End-to-end integration test using golang.org/x/oauth2 as the real OIDC
 // client library. This exercises the full authorize → token → userinfo path
-// through a live httptest.Server, verifying that Authpilot is interoperable
+// through a live httptest.Server, verifying that Furnace is interoperable
 // with a standard OAuth 2.0 / OIDC client — not just with hand-rolled HTTP
 // requests.
 //
 // The test spins up:
-//   - An httptest.Server running the Authpilot OIDC router (protocol server)
+//   - An httptest.Server running the Furnace OIDC router (protocol server)
 //   - A second httptest.Server acting as the relying-party callback endpoint
 //
 // Flow:
@@ -33,9 +33,9 @@ import (
 
 	"golang.org/x/oauth2"
 
-	"authpilot/server/internal/domain"
-	"authpilot/server/internal/oidc"
-	"authpilot/server/internal/store/memory"
+	"furnace/server/internal/domain"
+	"furnace/server/internal/oidc"
+	"furnace/server/internal/store/memory"
 )
 
 func TestE2E_OIDCClientLibrary(t *testing.T) {

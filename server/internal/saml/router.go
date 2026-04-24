@@ -10,8 +10,8 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"authpilot/server/internal/domain"
-	"authpilot/server/internal/store"
+	"furnace/server/internal/domain"
+	"furnace/server/internal/store"
 )
 
 func newFlowID() string {
@@ -71,7 +71,7 @@ func metadataHandler(dep RouterDeps) http.HandlerFunc {
 func certHandler(dep RouterDeps) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/x-pem-file")
-		w.Header().Set("Content-Disposition", `attachment; filename="authpilot-idp.pem"`)
+		w.Header().Set("Content-Disposition", `attachment; filename="furnace-idp.pem"`)
 		_, _ = w.Write(dep.CertMgr.CertPEM())
 	}
 }
@@ -410,9 +410,9 @@ const sloConfirmPage = `<!DOCTYPE html>
 // sloInfoPage is shown when /saml/slo is visited without a SAMLRequest.
 const sloInfoPage = `<!DOCTYPE html>
 <html>
-<head><title>Authpilot SAML SLO</title></head>
+<head><title>Furnace SAML SLO</title></head>
 <body style="font-family:system-ui;max-width:600px;margin:48px auto;padding:0 24px">
-<h2>Authpilot — SAML Single Logout</h2>
+<h2>Furnace — SAML Single Logout</h2>
 <p>This is the SAML 2.0 SLO endpoint: <code>%s</code></p>
 <p>Send a signed LogoutRequest here, or use <code>?user_id=&lt;id&gt;</code> for IdP-initiated logout.</p>
 </body>
@@ -421,9 +421,9 @@ const sloInfoPage = `<!DOCTYPE html>
 // samlInfoPage is shown when /saml/sso is visited without a SAMLRequest.
 const samlInfoPage = `<!DOCTYPE html>
 <html>
-<head><title>Authpilot SAML IdP</title></head>
+<head><title>Furnace SAML IdP</title></head>
 <body style="font-family:system-ui;max-width:600px;margin:48px auto;padding:0 24px">
-<h2>Authpilot — SAML Identity Provider</h2>
+<h2>Furnace — SAML Identity Provider</h2>
 <p>This is the SAML 2.0 SSO endpoint. Configure your SP with:</p>
 <ul>
   <li><b>IdP Entity ID:</b> <code>%s</code></li>

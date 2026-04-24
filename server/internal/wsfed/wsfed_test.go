@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"authpilot/server/internal/domain"
-	"authpilot/server/internal/saml"
-	"authpilot/server/internal/store/memory"
+	"furnace/server/internal/domain"
+	"furnace/server/internal/saml"
+	"furnace/server/internal/store/memory"
 )
 
 func newTestDeps(t *testing.T) RouterDeps {

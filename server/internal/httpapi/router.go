@@ -14,12 +14,12 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"authpilot/server/internal/audit"
-	"authpilot/server/internal/domain"
-	"authpilot/server/internal/export"
-	"authpilot/server/internal/notify"
-	"authpilot/server/internal/store"
-	"authpilot/server/internal/store/tenanted"
+	"furnace/server/internal/audit"
+	"furnace/server/internal/domain"
+	"furnace/server/internal/export"
+	"furnace/server/internal/notify"
+	"furnace/server/internal/store"
+	"furnace/server/internal/store/tenanted"
 )
 
 // SCIMClient pushes user mutations to an external SCIM server.

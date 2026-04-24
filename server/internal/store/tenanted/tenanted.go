@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"authpilot/server/internal/domain"
-	"authpilot/server/internal/store"
-	"authpilot/server/internal/tenant"
+	"furnace/server/internal/domain"
+	"furnace/server/internal/store"
+	"furnace/server/internal/tenant"
 )
 
 const sep = "::"

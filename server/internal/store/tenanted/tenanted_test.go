@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"authpilot/server/internal/domain"
-	"authpilot/server/internal/store"
-	"authpilot/server/internal/store/memory"
-	"authpilot/server/internal/tenant"
+	"furnace/server/internal/domain"
+	"furnace/server/internal/store"
+	"furnace/server/internal/store/memory"
+	"furnace/server/internal/tenant"
 )
 
 // ---- UserStore ----

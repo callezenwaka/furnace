@@ -5,7 +5,7 @@ import (
 	"flag"
 	"log"
 
-	"github.com/callezenwaka/terraform-provider-authpilot/internal/provider"
+	"github.com/callezenwaka/terraform-provider-furnace/internal/provider"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 )
 
@@ -18,7 +18,7 @@ func main() {
 	flag.Parse()
 
 	opts := providerserver.ServeOpts{
-		Address: "registry.terraform.io/callezenwaka/authpilot",
+		Address: "registry.terraform.io/callezenwaka/furnace",
 		Debug:   debug,
 	}
 

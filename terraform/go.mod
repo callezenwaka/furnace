@@ -1,4 +1,4 @@
-module github.com/callezenwaka/terraform-provider-authpilot
+module github.com/callezenwaka/terraform-provider-furnace
 
 go 1.26.2
 

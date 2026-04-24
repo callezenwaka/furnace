@@ -1,14 +1,14 @@
-// Package v1alpha1 defines the Authpilot CRD types.
+// Package v1alpha1 defines the Furnace CRD types.
 //
-// AuthpilotUser and AuthpilotGroup are reconciled by the operator to
-// Authpilot state via the SCIM 2.0 API (POST/PUT/DELETE /scim/v2/Users
+// FurnaceUser and FurnaceGroup are reconciled by the operator to
+// Furnace state via the SCIM 2.0 API (POST/PUT/DELETE /scim/v2/Users
 // and /scim/v2/Groups).
 package v1alpha1
 
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-// AuthpilotUserSpec defines the desired user state.
-type AuthpilotUserSpec struct {
+// FurnaceUserSpec defines the desired user state.
+type FurnaceUserSpec struct {
 	// Email is the user's email address, used as the SCIM userName.
 	Email string `json:"email"`
 	// DisplayName is the human-readable display name.
@@ -27,11 +27,11 @@ type AuthpilotUserSpec struct {
 	Active bool `json:"active"`
 }
 
-// AuthpilotUserStatus reflects the observed state of the user in Authpilot.
-type AuthpilotUserStatus struct {
-	// AuthpilotID is the ID assigned to the user in Authpilot.
+// FurnaceUserStatus reflects the observed state of the user in Furnace.
+type FurnaceUserStatus struct {
+	// FurnaceID is the ID assigned to the user in Furnace.
 	// +optional
-	AuthpilotID string `json:"authpilotId,omitempty"`
+	FurnaceID string `json:"furnaceId,omitempty"`
 	// Conditions summarise the reconciliation state.
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
@@ -43,26 +43,26 @@ type AuthpilotUserStatus struct {
 // +kubebuilder:printcolumn:name="Active",type="boolean",JSONPath=".spec.active"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
-// AuthpilotUser is the Schema for the authpilotusers API.
-type AuthpilotUser struct {
+// FurnaceUser is the Schema for the furnaceusers API.
+type FurnaceUser struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   AuthpilotUserSpec   `json:"spec,omitempty"`
-	Status AuthpilotUserStatus `json:"status,omitempty"`
+	Spec   FurnaceUserSpec   `json:"spec,omitempty"`
+	Status FurnaceUserStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
-// AuthpilotUserList contains a list of AuthpilotUser.
-type AuthpilotUserList struct {
+// FurnaceUserList contains a list of FurnaceUser.
+type FurnaceUserList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []AuthpilotUser `json:"items"`
+	Items           []FurnaceUser `json:"items"`
 }
 
-// AuthpilotGroupSpec defines the desired group state.
-type AuthpilotGroupSpec struct {
+// FurnaceGroupSpec defines the desired group state.
+type FurnaceGroupSpec struct {
 	// Name is the machine-readable group name.
 	Name string `json:"name"`
 	// DisplayName is the human-readable display name.
@@ -70,11 +70,11 @@ type AuthpilotGroupSpec struct {
 	DisplayName string `json:"displayName,omitempty"`
 }
 
-// AuthpilotGroupStatus reflects the observed state of the group in Authpilot.
-type AuthpilotGroupStatus struct {
-	// AuthpilotID is the ID assigned to the group in Authpilot.
+// FurnaceGroupStatus reflects the observed state of the group in Furnace.
+type FurnaceGroupStatus struct {
+	// FurnaceID is the ID assigned to the group in Furnace.
 	// +optional
-	AuthpilotID string `json:"authpilotId,omitempty"`
+	FurnaceID string `json:"furnaceId,omitempty"`
 	// Conditions summarise the reconciliation state.
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
@@ -85,20 +85,20 @@ type AuthpilotGroupStatus struct {
 // +kubebuilder:printcolumn:name="Name",type="string",JSONPath=".spec.name"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
-// AuthpilotGroup is the Schema for the authpilotgroups API.
-type AuthpilotGroup struct {
+// FurnaceGroup is the Schema for the furnacegroups API.
+type FurnaceGroup struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   AuthpilotGroupSpec   `json:"spec,omitempty"`
-	Status AuthpilotGroupStatus `json:"status,omitempty"`
+	Spec   FurnaceGroupSpec   `json:"spec,omitempty"`
+	Status FurnaceGroupStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
-// AuthpilotGroupList contains a list of AuthpilotGroup.
-type AuthpilotGroupList struct {
+// FurnaceGroupList contains a list of FurnaceGroup.
+type FurnaceGroupList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []AuthpilotGroup `json:"items"`
+	Items           []FurnaceGroup `json:"items"`
 }

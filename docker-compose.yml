@@ -1,5 +1,5 @@
 services:
-  authpilot:
+  furnace:
     build:
       context: .
       dockerfile: Dockerfile
@@ -7,12 +7,12 @@ services:
       - "8025:8025"
       - "8026:8026"
     environment:
-      AUTHPILOT_HTTP_ADDR: ":8025"
-      AUTHPILOT_PROTOCOL_ADDR: ":8026"
-      AUTHPILOT_PERSISTENCE_ENABLED: "true"
-      AUTHPILOT_SQLITE_PATH: "/data/authpilot.db"
+      FURNACE_HTTP_ADDR: ":8025"
+      FURNACE_PROTOCOL_ADDR: ":8026"
+      FURNACE_PERSISTENCE_ENABLED: "true"
+      FURNACE_SQLITE_PATH: "/data/furnace.db"
     volumes:
-      - authpilot_data:/data
+      - furnace_data:/data
 
 volumes:
-  authpilot_data:
+  furnace_data:

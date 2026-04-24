@@ -1,4 +1,4 @@
-module authpilot
+module furnace
 
 go 1.26.2
 

@@ -1,4 +1,4 @@
-// Package export converts Authpilot users and groups into migration-ready formats.
+// Package export converts Furnace users and groups into migration-ready formats.
 // Supported formats: SCIM 2.0 (JSON), Okta CSV, Azure AD JSON, Google Workspace CSV.
 package export
 
@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"authpilot/server/internal/domain"
+	"furnace/server/internal/domain"
 )
 
 // Format identifies an export format.
@@ -54,15 +54,15 @@ func Filename(f Format) string {
 	ts := time.Now().UTC().Format("20060102-150405")
 	switch f {
 	case FormatSCIM:
-		return fmt.Sprintf("authpilot-export-scim-%s.json", ts)
+		return fmt.Sprintf("furnace-export-scim-%s.json", ts)
 	case FormatOkta:
-		return fmt.Sprintf("authpilot-export-okta-%s.csv", ts)
+		return fmt.Sprintf("furnace-export-okta-%s.csv", ts)
 	case FormatAzure:
-		return fmt.Sprintf("authpilot-export-azure-%s.json", ts)
+		return fmt.Sprintf("furnace-export-azure-%s.json", ts)
 	case FormatGoogle:
-		return fmt.Sprintf("authpilot-export-google-%s.csv", ts)
+		return fmt.Sprintf("furnace-export-google-%s.csv", ts)
 	}
-	return fmt.Sprintf("authpilot-export-%s.txt", ts)
+	return fmt.Sprintf("furnace-export-%s.txt", ts)
 }
 
 // Users renders users in the requested format.

@@ -35,9 +35,9 @@
       <div class="card-body" style="padding:18px">
         <ol style="margin:0;padding-left:20px;line-height:2;font-size:13px">
           <li>Relying party redirects browser to <code>:8026/wsfed?wa=wsignin1.0&amp;wtrealm=&lt;realm&gt;&amp;wreply=&lt;url&gt;</code></li>
-          <li>Authpilot validates <code>wtrealm</code>, creates a flow, and redirects to <code>/login</code></li>
-          <li>User completes login; Authpilot creates a session and redirects back to <code>/wsfed</code> with <code>wsfed_flow_id</code></li>
-          <li>Authpilot builds a signed WS-Trust RSTR (SAML 1.1 assertion) and auto-submits it to <code>wreply</code></li>
+          <li>Furnace validates <code>wtrealm</code>, creates a flow, and redirects to <code>/login</code></li>
+          <li>User completes login; Furnace creates a session and redirects back to <code>/wsfed</code> with <code>wsfed_flow_id</code></li>
+          <li>Furnace builds a signed WS-Trust RSTR (SAML 1.1 assertion) and auto-submits it to <code>wreply</code></li>
         </ol>
       </div>
     </div>
@@ -50,7 +50,7 @@
       <div class="card-body" style="padding:18px">
         <ol style="margin:0;padding-left:20px;line-height:2;font-size:13px">
           <li>Relying party redirects browser to <code>:8026/wsfed?wa=wsignout1.0&amp;wreply=&lt;url&gt;</code></li>
-          <li>Authpilot invalidates all sessions</li>
+          <li>Furnace invalidates all sessions</li>
           <li>Browser is redirected to <code>wreply</code>, or a sign-out confirmation page is shown if <code>wreply</code> is absent</li>
         </ol>
       </div>

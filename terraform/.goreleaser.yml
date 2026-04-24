@@ -1,13 +1,13 @@
 version: 2
 
-project_name: terraform-provider-authpilot
+project_name: terraform-provider-furnace
 
 before:
   hooks:
     - go mod tidy
 
 builds:
-  - id: terraform-provider-authpilot
+  - id: terraform-provider-furnace
     binary: "{{ .ProjectName }}_v{{ .Version }}"
     ldflags:
       - -s -w -X main.version={{ .Version }}
@@ -44,7 +44,7 @@ signs:
 release:
   github:
     owner: "{{ .Env.GITHUB_REPOSITORY_OWNER }}"
-    name: authpilot
+    name: furnace
   # Terraform Registry release notes format
   name_template: "terraform/{{ .Tag }}"
 

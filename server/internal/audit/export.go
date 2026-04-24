@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"authpilot/server/internal/domain"
+	"furnace/server/internal/domain"
 )
 
 // Format identifies a supported audit export format.
@@ -102,7 +102,7 @@ func exportCEF(events []domain.AuditEvent) ([]byte, error) {
 		for k, v := range e.Metadata {
 			ext += fmt.Sprintf(" %s=%s", cefKey(k), cefEscape(fmt.Sprintf("%v", v)))
 		}
-		line := fmt.Sprintf("CEF:0|Authpilot|authpilot|1.0|%s|%s|5|%s\n",
+		line := fmt.Sprintf("CEF:0|Furnace|furnace|1.0|%s|%s|5|%s\n",
 			cefEscape(e.ID),
 			cefEscape(e.EventType),
 			ext,
@@ -145,9 +145,9 @@ const (
 func exportSyslog(events []domain.AuditEvent) ([]byte, error) {
 	var buf bytes.Buffer
 	for _, e := range events {
-		// Encode metadata as structured data [authpilot@0].
+		// Encode metadata as structured data [furnace@0].
 		sd := buildStructuredData(e)
-		msg := fmt.Sprintf("<%d>1 %s authpilot - %s %s %s %s\n",
+		msg := fmt.Sprintf("<%d>1 %s furnace - %s %s %s %s\n",
 			syslogPRI,
 			e.Timestamp.UTC().Format(time.RFC3339),
 			e.EventType,
@@ -168,7 +168,7 @@ func buildStructuredData(e domain.AuditEvent) string {
 	for k, v := range e.Metadata {
 		parts = append(parts, fmt.Sprintf(`%s="%s"`, sdParamName(k), sdEscape(fmt.Sprintf("%v", v))))
 	}
-	return fmt.Sprintf("[authpilot@0 %s]", strings.Join(parts, " "))
+	return fmt.Sprintf("[furnace@0 %s]", strings.Join(parts, " "))
 }
 
 // sdParamName keeps only safe chars for SD-PARAM-NAME.

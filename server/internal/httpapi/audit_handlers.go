@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"time"
 
-	auditpkg "authpilot/server/internal/audit"
-	"authpilot/server/internal/domain"
-	"authpilot/server/internal/store"
+	auditpkg "furnace/server/internal/audit"
+	"furnace/server/internal/domain"
+	"furnace/server/internal/store"
 )
 
 func auditListHandler(as store.AuditStore) http.HandlerFunc {

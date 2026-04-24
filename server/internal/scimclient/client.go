@@ -1,6 +1,6 @@
 // Package scimclient implements an outbound SCIM 2.0 push client.
 //
-// When Authpilot runs in SCIM client mode (AUTHPILOT_SCIM_MODE=client) it
+// When Furnace runs in SCIM client mode (FURNACE_SCIM_MODE=client) it
 // mirrors every user create/update/delete to an external SCIM server. Pushes
 // are best-effort: failures are logged in the SCIMEventStore but never block
 // the management API call that triggered them.
@@ -15,8 +15,8 @@ import (
 	"net/http"
 	"time"
 
-	"authpilot/server/internal/domain"
-	"authpilot/server/internal/store"
+	"furnace/server/internal/domain"
+	"furnace/server/internal/store"
 )
 
 // Client pushes user mutations to a remote SCIM 2.0 target.

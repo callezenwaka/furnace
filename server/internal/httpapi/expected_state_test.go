@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"authpilot/server/internal/domain"
-	flowengine "authpilot/server/internal/flow"
-	"authpilot/server/internal/store/memory"
+	"furnace/server/internal/domain"
+	flowengine "furnace/server/internal/flow"
+	"furnace/server/internal/store/memory"
 )
 
 // seedFlowAtState creates a flow already at the given state, with userID set.

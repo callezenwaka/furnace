@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"authpilot/server/internal/domain"
-	"authpilot/server/internal/store/memory"
+	"furnace/server/internal/domain"
+	"furnace/server/internal/store/memory"
 )
 
 // --- CertManager tests ---

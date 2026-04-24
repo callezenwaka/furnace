@@ -10,10 +10,10 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"authpilot/server/internal/audit"
-	"authpilot/server/internal/domain"
-	flowengine "authpilot/server/internal/flow"
-	"authpilot/server/internal/store"
+	"furnace/server/internal/audit"
+	"furnace/server/internal/domain"
+	flowengine "furnace/server/internal/flow"
+	"furnace/server/internal/store"
 )
 
 const defaultFlowTTL = 30 * time.Minute
@@ -35,7 +35,7 @@ type loginViewData struct {
 
 var loginTemplate = template.Must(template.New("login").Parse(`<!doctype html>
 <html>
-<head><meta charset="utf-8"><title>Authpilot Login</title></head>
+<head><meta charset="utf-8"><title>Furnace Login</title></head>
 <body>
   <h1>Sign In</h1>
   <p>Flow ID: {{.FlowID}}</p>
@@ -54,7 +54,7 @@ var loginTemplate = template.Must(template.New("login").Parse(`<!doctype html>
 
 var mfaTemplate = template.Must(template.New("mfa").Parse(`<!doctype html>
 <html>
-<head><meta charset="utf-8"><title>Authpilot MFA</title>
+<head><meta charset="utf-8"><title>Furnace MFA</title>
 <style>
   body{font-family:system-ui,sans-serif;max-width:440px;margin:60px auto;padding:0 20px;color:#111}
   h1{font-size:1.4rem;margin-bottom:4px}
@@ -132,7 +132,7 @@ var mfaTemplate = template.Must(template.New("mfa").Parse(`<!doctype html>
 
 var completeTemplate = template.Must(template.New("complete").Parse(`<!doctype html>
 <html>
-<head><meta charset="utf-8"><title>Authpilot Complete</title></head>
+<head><meta charset="utf-8"><title>Furnace Complete</title></head>
 <body>
   <h1>Flow Result</h1>
   <p>Flow ID: {{.FlowID}}</p>

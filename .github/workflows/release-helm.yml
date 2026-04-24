@@ -36,7 +36,7 @@ jobs:
 
       - name: Package chart
         run: |
-          helm package deploy/helm/authpilot \
+          helm package deploy/helm/furnace \
             --version "${{ env.CHART_VERSION }}" \
             --app-version "${{ env.VERSION }}" \
             --destination /tmp/helm-packages

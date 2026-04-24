@@ -9,29 +9,29 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"authpilot/server/internal/store"
+	"furnace/server/internal/store"
 )
 
 // tokenCompareHandler implements GET /api/v1/debug/token-compare.
 //
-// Accepts two JWT strings — one from Authpilot and one from a real provider —
+// Accepts two JWT strings — one from Furnace and one from a real provider —
 // and returns a structured diff of their claim sets. No signature verification
 // is performed; this is a dev/debug tool only.
 //
 // Query params:
-//   - authpilot_token: JWT issued by this Authpilot instance
+//   - furnace_token: JWT issued by this Furnace instance
 //   - provider_token:  JWT from the real provider (Okta, Azure AD, etc.)
 //
 // Optional:
 //   - flow_id: if supplied, verifies the flow exists (helps correlate context)
 func tokenCompareHandler(flows store.FlowStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		authpilotToken := strings.TrimSpace(r.URL.Query().Get("authpilot_token"))
+		furnaceToken := strings.TrimSpace(r.URL.Query().Get("furnace_token"))
 		providerToken := strings.TrimSpace(r.URL.Query().Get("provider_token"))
 		flowID := strings.TrimSpace(r.URL.Query().Get("flow_id"))
 
-		if authpilotToken == "" {
-			writeAPIError(w, r, http.StatusBadRequest, "INVALID_REQUEST", "authpilot_token is required", false)
+		if furnaceToken == "" {
+			writeAPIError(w, r, http.StatusBadRequest, "INVALID_REQUEST", "furnace_token is required", false)
 			return
 		}
 		if providerToken == "" {
@@ -47,10 +47,10 @@ func tokenCompareHandler(flows store.FlowStore) http.HandlerFunc {
 			}
 		}
 
-		authpilotClaims, err := decodeJWTClaims(authpilotToken)
+		furnaceClaims, err := decodeJWTClaims(furnaceToken)
 		if err != nil {
 			writeAPIError(w, r, http.StatusUnprocessableEntity, "DECODE_FAILED",
-				fmt.Sprintf("could not decode authpilot_token: %v", err), false)
+				fmt.Sprintf("could not decode furnace_token: %v", err), false)
 			return
 		}
 
@@ -62,9 +62,9 @@ func tokenCompareHandler(flows store.FlowStore) http.HandlerFunc {
 		}
 
 		writeJSON(w, http.StatusOK, map[string]any{
-			"authpilot_token": authpilotClaims,
+			"furnace_token": furnaceClaims,
 			"provider_token":  providerClaims,
-			"differences":     diffClaims(authpilotClaims, providerClaims),
+			"differences":     diffClaims(furnaceClaims, providerClaims),
 		})
 	}
 }
@@ -72,32 +72,32 @@ func tokenCompareHandler(flows store.FlowStore) http.HandlerFunc {
 // ClaimDiff describes a single claim difference between two tokens.
 type ClaimDiff struct {
 	Path            string `json:"path"`
-	AuthpilotValue  any    `json:"authpilot_value"`
+	FurnaceValue  any    `json:"furnace_value"`
 	ProviderValue   any    `json:"provider_value"`
 	Note            string `json:"note"`
 }
 
 // diffClaims compares two claim maps and returns a list of differences.
-func diffClaims(authpilot, provider map[string]any) []ClaimDiff {
+func diffClaims(furnace, provider map[string]any) []ClaimDiff {
 	var diffs []ClaimDiff
 	seen := make(map[string]bool)
 
-	for k, av := range authpilot {
+	for k, av := range furnace {
 		seen[k] = true
 		pv, ok := provider[k]
 		if !ok {
 			diffs = append(diffs, ClaimDiff{
 				Path:           k,
-				AuthpilotValue: av,
+				FurnaceValue: av,
 				ProviderValue:  nil,
-				Note:           "present in authpilot token, missing in provider token",
+				Note:           "present in furnace token, missing in provider token",
 			})
 			continue
 		}
 		if fmt.Sprintf("%v", av) != fmt.Sprintf("%v", pv) {
 			diffs = append(diffs, ClaimDiff{
 				Path:           k,
-				AuthpilotValue: av,
+				FurnaceValue: av,
 				ProviderValue:  pv,
 				Note:           "values differ",
 			})
@@ -110,9 +110,9 @@ func diffClaims(authpilot, provider map[string]any) []ClaimDiff {
 		}
 		diffs = append(diffs, ClaimDiff{
 			Path:           k,
-			AuthpilotValue: nil,
+			FurnaceValue: nil,
 			ProviderValue:  pv,
-			Note:           "missing in authpilot token, present in provider token",
+			Note:           "missing in furnace token, present in provider token",
 		})
 	}
 

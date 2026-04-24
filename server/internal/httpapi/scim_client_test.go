@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"authpilot/server/internal/domain"
-	"authpilot/server/internal/store/memory"
+	"furnace/server/internal/domain"
+	"furnace/server/internal/store/memory"
 )
 
 // fakeScimClient captures calls instead of making real HTTP requests.

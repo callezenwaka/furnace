@@ -1,12 +1,12 @@
 apiVersion: v2
-name: authpilot
+name: furnace
 description: Local identity provider simulator for development and staging environments.
 type: application
 version: 0.0.0       # replaced at release time by helm package --version
 appVersion: "latest" # replaced at release time
-home: https://github.com/callezenwaka/authpilot
+home: https://github.com/callezenwaka/furnace
 sources:
-  - https://github.com/callezenwaka/authpilot
+  - https://github.com/callezenwaka/furnace
 keywords:
   - oidc
   - saml
@@ -14,4 +14,4 @@ keywords:
   - auth
   - testing
 maintainers:
-  - name: Authpilot maintainers
+  - name: Furnace maintainers

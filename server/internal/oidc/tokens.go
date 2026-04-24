@@ -9,8 +9,8 @@ import (
 
 	jose "github.com/go-jose/go-jose/v3"
 
-	"authpilot/server/internal/domain"
-	"authpilot/server/internal/personality"
+	"furnace/server/internal/domain"
+	"furnace/server/internal/personality"
 )
 
 // TokenConfig controls lifetimes for issued tokens.

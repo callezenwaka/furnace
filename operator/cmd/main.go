@@ -1,6 +1,6 @@
-// main is the entry point for the authpilot-operator.
+// main is the entry point for the furnace-operator.
 //
-// It reads AUTHPILOT_SCIM_URL and AUTHPILOT_SCIM_KEY from the environment,
+// It reads FURNACE_SCIM_URL and FURNACE_SCIM_KEY from the environment,
 // sets up controller-runtime, registers both reconcilers, and starts the
 // manager.
 package main
@@ -20,8 +20,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	v1alpha1 "github.com/callezenwaka/authpilot-operator/api/v1alpha1"
-	"github.com/callezenwaka/authpilot-operator/internal/controller"
+	v1alpha1 "github.com/callezenwaka/furnace-operator/api/v1alpha1"
+	"github.com/callezenwaka/furnace-operator/internal/controller"
 )
 
 var (
@@ -47,11 +47,11 @@ func main() {
 	opts := zap.Options{Development: true}
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
-	scimURL := os.Getenv("AUTHPILOT_SCIM_URL")
+	scimURL := os.Getenv("FURNACE_SCIM_URL")
 	if scimURL == "" {
-		setupLog.Info("AUTHPILOT_SCIM_URL not set — SCIM sync disabled")
+		setupLog.Info("FURNACE_SCIM_URL not set — SCIM sync disabled")
 	}
-	scimKey := os.Getenv("AUTHPILOT_SCIM_KEY")
+	scimKey := os.Getenv("FURNACE_SCIM_KEY")
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme: scheme,
@@ -60,7 +60,7 @@ func main() {
 		},
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "authpilot-operator-lock",
+		LeaderElectionID:       "furnace-operator-lock",
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
@@ -69,13 +69,13 @@ func main() {
 
 	if err = controller.NewUserReconciler(mgr.GetClient(), mgr.GetScheme(), scimURL, scimKey).
 		SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "AuthpilotUser")
+		setupLog.Error(err, "unable to create controller", "controller", "FurnaceUser")
 		os.Exit(1)
 	}
 
 	if err = controller.NewGroupReconciler(mgr.GetClient(), mgr.GetScheme(), scimURL, scimKey).
 		SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "AuthpilotGroup")
+		setupLog.Error(err, "unable to create controller", "controller", "FurnaceGroup")
 		os.Exit(1)
 	}
 

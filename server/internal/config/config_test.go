@@ -8,8 +8,8 @@ import (
 )
 
 func TestConfigPrecedenceRuntimeOverEnvOverYAMLOverDefaults(t *testing.T) {
-	t.Setenv("AUTHPILOT_HTTP_ADDR", ":9001")
-	t.Setenv("AUTHPILOT_PERSISTENCE_ENABLED", "true")
+	t.Setenv("FURNACE_HTTP_ADDR", ":9001")
+	t.Setenv("FURNACE_PERSISTENCE_ENABLED", "true")
 
 	tmp := t.TempDir()
 	cfgPath := filepath.Join(tmp, "config.yaml")
@@ -68,7 +68,7 @@ func TestSeedUsers_ParsedFromEnv(t *testing.T) {
 - id: usr_bob
   email: bob@example.com
 `
-	t.Setenv("AUTHPILOT_SEED_USERS", yaml)
+	t.Setenv("FURNACE_SEED_USERS", yaml)
 
 	cfg, err := Load("", RuntimeOverrides{})
 	if err != nil {
@@ -86,11 +86,11 @@ func TestSeedUsers_ParsedFromEnv(t *testing.T) {
 }
 
 func TestSeedUsers_InvalidYAML_ReturnsError(t *testing.T) {
-	t.Setenv("AUTHPILOT_SEED_USERS", "}{not yaml}{")
+	t.Setenv("FURNACE_SEED_USERS", "}{not yaml}{")
 
 	_, err := Load("", RuntimeOverrides{})
 	if err == nil {
-		t.Fatal("expected error for invalid AUTHPILOT_SEED_USERS YAML")
+		t.Fatal("expected error for invalid FURNACE_SEED_USERS YAML")
 	}
 }
 

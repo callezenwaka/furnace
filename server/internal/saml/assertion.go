@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"time"
 
-	"authpilot/server/internal/domain"
+	"furnace/server/internal/domain"
 )
 
 // --- SAML Response / Assertion structures ---

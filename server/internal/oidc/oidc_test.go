@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"authpilot/server/internal/domain"
-	"authpilot/server/internal/oidc"
-	"authpilot/server/internal/store/memory"
+	"furnace/server/internal/domain"
+	"furnace/server/internal/oidc"
+	"furnace/server/internal/store/memory"
 )
 
 // ---------------------------------------------------------------------------

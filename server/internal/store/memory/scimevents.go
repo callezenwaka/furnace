@@ -3,7 +3,7 @@ package memory
 import (
 	"sync"
 
-	"authpilot/server/internal/domain"
+	"furnace/server/internal/domain"
 )
 
 const defaultSCIMEventCap = 10_000

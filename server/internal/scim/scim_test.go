@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"authpilot/server/internal/store/memory"
+	"furnace/server/internal/store/memory"
 )
 
 func newTestRouter() http.Handler {

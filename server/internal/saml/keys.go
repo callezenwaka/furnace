@@ -79,8 +79,8 @@ func generate() (*CertManager, error) {
 	tmpl := &x509.Certificate{
 		SerialNumber: serial,
 		Subject: pkix.Name{
-			CommonName:   "Authpilot SAML IdP",
-			Organization: []string{"Authpilot"},
+			CommonName:   "Furnace SAML IdP",
+			Organization: []string{"Furnace"},
 		},
 		NotBefore:             now,
 		NotAfter:              now.Add(10 * 365 * 24 * time.Hour), // 10 years

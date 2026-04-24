@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"authpilot/server/internal/domain"
+	"furnace/server/internal/domain"
 )
 
 func TestUserCRUD(t *testing.T) {

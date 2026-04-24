@@ -10,7 +10,7 @@
 // The WS-Federation Passive Requestor Profile (OA-WSFED-1.0) has no equivalent
 // of OAuth 2.0 PKCE (RFC 7636). The protocol predates PKCE and relies on the
 // wctx/wtrealm round-trip and a signed assertion posted back to the wreply URL
-// for security. Consumers integrating WS-Fed via Authpilot should be aware that:
+// for security. Consumers integrating WS-Fed via Furnace should be aware that:
 //
 //  1. No code_challenge / code_verifier exchange takes place.
 //  2. CSRF protection is the responsibility of the relying party (e.g. by
@@ -31,9 +31,9 @@ import (
 	"strings"
 	"time"
 
-	"authpilot/server/internal/domain"
-	"authpilot/server/internal/saml"
-	"authpilot/server/internal/store"
+	"furnace/server/internal/domain"
+	"furnace/server/internal/saml"
+	"furnace/server/internal/store"
 )
 
 // RouterDeps are the dependencies required by the WS-Fed router.
@@ -45,7 +45,7 @@ type RouterDeps struct {
 	EntityID string
 	// IssuerURL is the base URL of the WS-Fed endpoint, e.g. "http://localhost:8026/wsfed".
 	IssuerURL string
-	// LoginURL is where the browser is redirected for the Authpilot login UI.
+	// LoginURL is where the browser is redirected for the Furnace login UI.
 	LoginURL string
 	// SessionTTL is how long WS-Fed sessions remain valid.
 	SessionTTL time.Duration
@@ -384,7 +384,7 @@ func escapeText(s string) string {
 const wsfedInfoPage = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>WS-Federation IdP</title></head>
 <body>
-<h2>Authpilot WS-Federation IdP</h2>
+<h2>Furnace WS-Federation IdP</h2>
 <p>Entity ID: <code>%s</code></p>
 <p>Passive Requestor Endpoint: <code>%s</code></p>
 <p>Federation Metadata: <a href="/federationmetadata/2007-06/federationmetadata.xml">federationmetadata.xml</a></p>

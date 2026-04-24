@@ -11,9 +11,9 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"authpilot/server/internal/domain"
-	flowengine "authpilot/server/internal/flow"
-	"authpilot/server/internal/store"
+	"furnace/server/internal/domain"
+	flowengine "furnace/server/internal/flow"
+	"furnace/server/internal/store"
 )
 
 // RouterDeps groups everything the OIDC router needs.
@@ -371,7 +371,7 @@ func userinfoHandler(dep RouterDeps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := bearerToken(r)
 		if token == "" {
-			w.Header().Set("WWW-Authenticate", `Bearer realm="authpilot"`)
+			w.Header().Set("WWW-Authenticate", `Bearer realm="furnace"`)
 			writeOAuthError(w, http.StatusUnauthorized, "invalid_token", "bearer token required")
 			return
 		}
@@ -380,7 +380,7 @@ func userinfoHandler(dep RouterDeps) http.HandlerFunc {
 		// since this is a local dev tool — full validation is optional).
 		sub, err := subFromJWT(token)
 		if err != nil {
-			w.Header().Set("WWW-Authenticate", `Bearer realm="authpilot", error="invalid_token"`)
+			w.Header().Set("WWW-Authenticate", `Bearer realm="furnace", error="invalid_token"`)
 			writeOAuthError(w, http.StatusUnauthorized, "invalid_token", "cannot parse access token")
 			return
 		}

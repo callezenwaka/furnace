@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"authpilot/server/internal/domain"
-	"authpilot/server/internal/oidc"
+	"furnace/server/internal/domain"
+	"furnace/server/internal/oidc"
 )
 
 // mintToken is a test helper that issues a real signed token via MintForUser.

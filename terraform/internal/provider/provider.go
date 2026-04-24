@@ -1,14 +1,14 @@
-// Package provider implements the Authpilot Terraform provider.
+// Package provider implements the Furnace Terraform provider.
 //
 // Resources:
-//   - authpilot_user   → POST/PUT/DELETE /api/v1/users
-//   - authpilot_group  → POST/PUT/DELETE /api/v1/groups
+//   - furnace_user   → POST/PUT/DELETE /api/v1/users
+//   - furnace_group  → POST/PUT/DELETE /api/v1/groups
 //
 // Provider configuration:
 //
-//	provider "authpilot" {
+//	provider "furnace" {
 //	  base_url = "http://localhost:8025"
-//	  api_key  = var.authpilot_api_key
+//	  api_key  = var.furnace_api_key
 //	}
 package provider
 
@@ -24,16 +24,16 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// Ensure AuthpilotProvider satisfies the provider.Provider interface.
-var _ provider.Provider = &AuthpilotProvider{}
+// Ensure FurnaceProvider satisfies the provider.Provider interface.
+var _ provider.Provider = &FurnaceProvider{}
 
-// AuthpilotProvider defines the provider implementation.
-type AuthpilotProvider struct {
+// FurnaceProvider defines the provider implementation.
+type FurnaceProvider struct {
 	version string
 }
 
-// AuthpilotProviderModel describes the provider data model.
-type AuthpilotProviderModel struct {
+// FurnaceProviderModel describes the provider data model.
+type FurnaceProviderModel struct {
 	BaseURL types.String `tfsdk:"base_url"`
 	APIKey  types.String `tfsdk:"api_key"`
 }
@@ -47,27 +47,27 @@ type Client struct {
 
 func New(version string) func() provider.Provider {
 	return func() provider.Provider {
-		return &AuthpilotProvider{version: version}
+		return &FurnaceProvider{version: version}
 	}
 }
 
-func (p *AuthpilotProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
-	resp.TypeName = "authpilot"
+func (p *FurnaceProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
+	resp.TypeName = "furnace"
 	resp.Version = p.version
 }
 
-func (p *AuthpilotProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
+func (p *FurnaceProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Provider for managing Authpilot users, groups, and tenants via the management API.",
+		MarkdownDescription: "Provider for managing Furnace users, groups, and tenants via the management API.",
 		Attributes: map[string]schema.Attribute{
 			"base_url": schema.StringAttribute{
-				MarkdownDescription: "Base URL of the Authpilot management API (e.g. `http://localhost:8025`). " +
-					"Can also be set via `AUTHPILOT_BASE_URL` environment variable.",
+				MarkdownDescription: "Base URL of the Furnace management API (e.g. `http://localhost:8025`). " +
+					"Can also be set via `FURNACE_BASE_URL` environment variable.",
 				Optional: true,
 			},
 			"api_key": schema.StringAttribute{
-				MarkdownDescription: "API key for the Authpilot management API. " +
-					"Can also be set via `AUTHPILOT_API_KEY` environment variable.",
+				MarkdownDescription: "API key for the Furnace management API. " +
+					"Can also be set via `FURNACE_API_KEY` environment variable.",
 				Optional:  true,
 				Sensitive: true,
 			},
@@ -75,8 +75,8 @@ func (p *AuthpilotProvider) Schema(_ context.Context, _ provider.SchemaRequest, 
 	}
 }
 
-func (p *AuthpilotProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
-	var data AuthpilotProviderModel
+func (p *FurnaceProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
+	var data FurnaceProviderModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -100,13 +100,13 @@ func (p *AuthpilotProvider) Configure(ctx context.Context, req provider.Configur
 	resp.ResourceData = client
 }
 
-func (p *AuthpilotProvider) Resources(_ context.Context) []func() resource.Resource {
+func (p *FurnaceProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewUserResource,
 		NewGroupResource,
 	}
 }
 
-func (p *AuthpilotProvider) DataSources(_ context.Context) []func() datasource.DataSource {
+func (p *FurnaceProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{}
 }

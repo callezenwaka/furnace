@@ -35,7 +35,7 @@ func (r *UserResource) Metadata(_ context.Context, req resource.MetadataRequest,
 
 func (r *UserResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manages an Authpilot user via `POST/PUT/DELETE /api/v1/users`.",
+		MarkdownDescription: "Manages an Furnace user via `POST/PUT/DELETE /api/v1/users`.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				MarkdownDescription: "Unique user ID.",

@@ -13,7 +13,7 @@ import (
 
 	"github.com/pquerna/otp/totp"
 
-	"authpilot/server/internal/domain"
+	"furnace/server/internal/domain"
 )
 
 // Payload is returned by the notifications endpoint for a given flow.
@@ -130,7 +130,7 @@ func GenerateFor(flow domain.Flow, user domain.User, baseURL string) (Payload, d
 			flow.WebAuthnChallenge = challenge
 		}
 		p.WebAuthnChallenge = flow.WebAuthnChallenge
-		p.WebAuthnCredentialID = "authpilot-sim-" + flow.UserID
+		p.WebAuthnCredentialID = "furnace-sim-" + flow.UserID
 
 	default:
 		p.Type = "none"

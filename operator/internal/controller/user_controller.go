@@ -1,10 +1,10 @@
-// Package controller implements the reconciliation loops for AuthpilotUser
-// and AuthpilotGroup custom resources.
+// Package controller implements the reconciliation loops for FurnaceUser
+// and FurnaceGroup custom resources.
 //
-// Each reconciler watches its CRD and syncs the desired spec to Authpilot
+// Each reconciler watches its CRD and syncs the desired spec to Furnace
 // via the SCIM 2.0 API using the existing /scim/v2/Users and /scim/v2/Groups
 // endpoints. The SCIM endpoint URL and bearer key are injected at startup
-// from environment variables (AUTHPILOT_SCIM_URL, AUTHPILOT_SCIM_KEY).
+// from environment variables (FURNACE_SCIM_URL, FURNACE_SCIM_KEY).
 package controller
 
 import (
@@ -24,16 +24,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	v1alpha1 "github.com/callezenwaka/authpilot-operator/api/v1alpha1"
+	v1alpha1 "github.com/callezenwaka/furnace-operator/api/v1alpha1"
 )
 
-const finalizerName = "authpilot.io/user-finalizer"
+const finalizerName = "furnace.io/user-finalizer"
 
-// UserReconciler reconciles AuthpilotUser objects.
+// UserReconciler reconciles FurnaceUser objects.
 type UserReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
-	SCIMURL  string // e.g. "http://authpilot:8025/scim/v2"
+	SCIMURL  string // e.g. "http://furnace:8025/scim/v2"
 	SCIMKey  string // bearer token for SCIM requests
 	http     *http.Client
 }
@@ -48,14 +48,14 @@ func NewUserReconciler(c client.Client, scheme *runtime.Scheme, scimURL, scimKey
 	}
 }
 
-// +kubebuilder:rbac:groups=authpilot.io,resources=authpilotusers,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=authpilot.io,resources=authpilotusers/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=authpilot.io,resources=authpilotusers/finalizers,verbs=update
+// +kubebuilder:rbac:groups=furnace.io,resources=furnaceusers,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=furnace.io,resources=furnaceusers/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=furnace.io,resources=furnaceusers/finalizers,verbs=update
 
 func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
-	var user v1alpha1.AuthpilotUser
+	var user v1alpha1.FurnaceUser
 	if err := r.Get(ctx, req.NamespacedName, &user); err != nil {
 		if errors.IsNotFound(err) {
 			return ctrl.Result{}, nil
@@ -67,7 +67,7 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	if !user.DeletionTimestamp.IsZero() {
 		if controllerutil.ContainsFinalizer(&user, finalizerName) {
 			if err := r.scimDeleteUser(ctx, user.Name); err != nil {
-				logger.Error(err, "failed to delete user from Authpilot")
+				logger.Error(err, "failed to delete user from Furnace")
 				return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 			}
 			controllerutil.RemoveFinalizer(&user, finalizerName)
@@ -88,26 +88,26 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 
 	// Upsert: try PUT first (idempotent), fall back to POST on 404.
 	if err := r.scimUpsertUser(ctx, &user); err != nil {
-		logger.Error(err, "failed to upsert user in Authpilot")
+		logger.Error(err, "failed to upsert user in Furnace")
 		r.setCondition(&user, "Ready", metav1.ConditionFalse, "SCIMError", err.Error())
 		_ = r.Status().Update(ctx, &user)
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
-	r.setCondition(&user, "Ready", metav1.ConditionTrue, "Synced", "user synced to Authpilot")
+	r.setCondition(&user, "Ready", metav1.ConditionTrue, "Synced", "user synced to Furnace")
 	_ = r.Status().Update(ctx, &user)
 	return ctrl.Result{}, nil
 }
 
 func (r *UserReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.AuthpilotUser{}).
+		For(&v1alpha1.FurnaceUser{}).
 		Complete(r)
 }
 
 // ── SCIM helpers ─────────────────────────────────────────────────────────────
 
-func (r *UserReconciler) scimUpsertUser(ctx context.Context, user *v1alpha1.AuthpilotUser) error {
+func (r *UserReconciler) scimUpsertUser(ctx context.Context, user *v1alpha1.FurnaceUser) error {
 	body := map[string]any{
 		"schemas":     []string{"urn:ietf:params:scim:schemas:core:2.0:User"},
 		"id":          user.Name,
@@ -183,7 +183,7 @@ func (r *UserReconciler) scimRequest(ctx context.Context, method, path string, b
 	return resp.StatusCode, nil
 }
 
-func (r *UserReconciler) setCondition(user *v1alpha1.AuthpilotUser, condType string, status metav1.ConditionStatus, reason, message string) {
+func (r *UserReconciler) setCondition(user *v1alpha1.FurnaceUser, condType string, status metav1.ConditionStatus, reason, message string) {
 	now := metav1.Now()
 	for i, c := range user.Status.Conditions {
 		if c.Type == condType {

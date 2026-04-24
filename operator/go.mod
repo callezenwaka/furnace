@@ -1,4 +1,4 @@
-module github.com/callezenwaka/authpilot-operator
+module github.com/callezenwaka/furnace-operator
 
 go 1.26.2
 

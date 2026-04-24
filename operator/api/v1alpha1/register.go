@@ -9,7 +9,7 @@ import (
 
 var (
 	// GroupVersion is the group version used to register these objects.
-	GroupVersion = schema.GroupVersion{Group: "authpilot.io", Version: "v1alpha1"}
+	GroupVersion = schema.GroupVersion{Group: "furnace.io", Version: "v1alpha1"}
 
 	// SchemeBuilder is used to add functions to this group's scheme.
 	SchemeBuilder = &scheme.Builder{GroupVersion: GroupVersion}
@@ -19,24 +19,24 @@ var (
 )
 
 func init() {
-	SchemeBuilder.Register(&AuthpilotUser{}, &AuthpilotUserList{})
-	SchemeBuilder.Register(&AuthpilotGroup{}, &AuthpilotGroupList{})
+	SchemeBuilder.Register(&FurnaceUser{}, &FurnaceUserList{})
+	SchemeBuilder.Register(&FurnaceGroup{}, &FurnaceGroupList{})
 }
 
-// ── AuthpilotUser DeepCopy ────────────────────────────────────────────────────
+// ── FurnaceUser DeepCopy ────────────────────────────────────────────────────
 
-func (in *AuthpilotUser) DeepCopyObject() runtime.Object { return in.DeepCopy() }
+func (in *FurnaceUser) DeepCopyObject() runtime.Object { return in.DeepCopy() }
 
-func (in *AuthpilotUser) DeepCopy() *AuthpilotUser {
+func (in *FurnaceUser) DeepCopy() *FurnaceUser {
 	if in == nil {
 		return nil
 	}
-	out := new(AuthpilotUser)
+	out := new(FurnaceUser)
 	in.DeepCopyInto(out)
 	return out
 }
 
-func (in *AuthpilotUser) DeepCopyInto(out *AuthpilotUser) {
+func (in *FurnaceUser) DeepCopyInto(out *FurnaceUser) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
 	in.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
@@ -44,7 +44,7 @@ func (in *AuthpilotUser) DeepCopyInto(out *AuthpilotUser) {
 	in.Status.DeepCopyInto(&out.Status)
 }
 
-func (in *AuthpilotUserSpec) DeepCopyInto(out *AuthpilotUserSpec) {
+func (in *FurnaceUserSpec) DeepCopyInto(out *FurnaceUserSpec) {
 	*out = *in
 	if in.Groups != nil {
 		out.Groups = make([]string, len(in.Groups))
@@ -52,7 +52,7 @@ func (in *AuthpilotUserSpec) DeepCopyInto(out *AuthpilotUserSpec) {
 	}
 }
 
-func (in *AuthpilotUserStatus) DeepCopyInto(out *AuthpilotUserStatus) {
+func (in *FurnaceUserStatus) DeepCopyInto(out *FurnaceUserStatus) {
 	*out = *in
 	if in.Conditions != nil {
 		out.Conditions = make([]metav1.Condition, len(in.Conditions))
@@ -60,45 +60,45 @@ func (in *AuthpilotUserStatus) DeepCopyInto(out *AuthpilotUserStatus) {
 	}
 }
 
-// ── AuthpilotUserList DeepCopy ────────────────────────────────────────────────
+// ── FurnaceUserList DeepCopy ────────────────────────────────────────────────
 
-func (in *AuthpilotUserList) DeepCopyObject() runtime.Object { return in.DeepCopy() }
+func (in *FurnaceUserList) DeepCopyObject() runtime.Object { return in.DeepCopy() }
 
-func (in *AuthpilotUserList) DeepCopy() *AuthpilotUserList {
+func (in *FurnaceUserList) DeepCopy() *FurnaceUserList {
 	if in == nil {
 		return nil
 	}
-	out := new(AuthpilotUserList)
+	out := new(FurnaceUserList)
 	in.DeepCopyInto(out)
 	return out
 }
 
-func (in *AuthpilotUserList) DeepCopyInto(out *AuthpilotUserList) {
+func (in *FurnaceUserList) DeepCopyInto(out *FurnaceUserList) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
 	in.ListMeta.DeepCopyInto(&out.ListMeta)
 	if in.Items != nil {
-		out.Items = make([]AuthpilotUser, len(in.Items))
+		out.Items = make([]FurnaceUser, len(in.Items))
 		for i := range in.Items {
 			in.Items[i].DeepCopyInto(&out.Items[i])
 		}
 	}
 }
 
-// ── AuthpilotGroup DeepCopy ───────────────────────────────────────────────────
+// ── FurnaceGroup DeepCopy ───────────────────────────────────────────────────
 
-func (in *AuthpilotGroup) DeepCopyObject() runtime.Object { return in.DeepCopy() }
+func (in *FurnaceGroup) DeepCopyObject() runtime.Object { return in.DeepCopy() }
 
-func (in *AuthpilotGroup) DeepCopy() *AuthpilotGroup {
+func (in *FurnaceGroup) DeepCopy() *FurnaceGroup {
 	if in == nil {
 		return nil
 	}
-	out := new(AuthpilotGroup)
+	out := new(FurnaceGroup)
 	in.DeepCopyInto(out)
 	return out
 }
 
-func (in *AuthpilotGroup) DeepCopyInto(out *AuthpilotGroup) {
+func (in *FurnaceGroup) DeepCopyInto(out *FurnaceGroup) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
 	in.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
@@ -106,7 +106,7 @@ func (in *AuthpilotGroup) DeepCopyInto(out *AuthpilotGroup) {
 	in.Status.DeepCopyInto(&out.Status)
 }
 
-func (in *AuthpilotGroupStatus) DeepCopyInto(out *AuthpilotGroupStatus) {
+func (in *FurnaceGroupStatus) DeepCopyInto(out *FurnaceGroupStatus) {
 	*out = *in
 	if in.Conditions != nil {
 		out.Conditions = make([]metav1.Condition, len(in.Conditions))
@@ -114,25 +114,25 @@ func (in *AuthpilotGroupStatus) DeepCopyInto(out *AuthpilotGroupStatus) {
 	}
 }
 
-// ── AuthpilotGroupList DeepCopy ───────────────────────────────────────────────
+// ── FurnaceGroupList DeepCopy ───────────────────────────────────────────────
 
-func (in *AuthpilotGroupList) DeepCopyObject() runtime.Object { return in.DeepCopy() }
+func (in *FurnaceGroupList) DeepCopyObject() runtime.Object { return in.DeepCopy() }
 
-func (in *AuthpilotGroupList) DeepCopy() *AuthpilotGroupList {
+func (in *FurnaceGroupList) DeepCopy() *FurnaceGroupList {
 	if in == nil {
 		return nil
 	}
-	out := new(AuthpilotGroupList)
+	out := new(FurnaceGroupList)
 	in.DeepCopyInto(out)
 	return out
 }
 
-func (in *AuthpilotGroupList) DeepCopyInto(out *AuthpilotGroupList) {
+func (in *FurnaceGroupList) DeepCopyInto(out *FurnaceGroupList) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
 	in.ListMeta.DeepCopyInto(&out.ListMeta)
 	if in.Items != nil {
-		out.Items = make([]AuthpilotGroup, len(in.Items))
+		out.Items = make([]FurnaceGroup, len(in.Items))
 		for i := range in.Items {
 			in.Items[i].DeepCopyInto(&out.Items[i])
 		}

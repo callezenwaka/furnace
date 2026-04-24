@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"authpilot/server/internal/domain"
-	"authpilot/server/internal/store/memory"
+	"furnace/server/internal/domain"
+	"furnace/server/internal/store/memory"
 )
 
 // newWebAuthnRouter builds a minimal test router with a webauthn user seeded.

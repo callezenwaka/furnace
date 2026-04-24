@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"authpilot/server/internal/store/memory"
+	"furnace/server/internal/store/memory"
 )
 
 func newMiddlewareRouter() http.Handler {

@@ -5,8 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"authpilot/server/internal/domain"
-	"authpilot/server/internal/store/memory"
+	"furnace/server/internal/domain"
+	"furnace/server/internal/store/memory"
 )
 
 func newHeaderPropDeps(headerPropagation bool) RouterDeps {

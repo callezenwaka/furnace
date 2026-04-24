@@ -4,7 +4,7 @@ log_level: "info"
 
 persistence:
   enabled: false
-  sqlite_path: "./data/authpilot.db"
+  sqlite_path: "./data/furnace.db"
 
 cleanup:
   interval: "60s"

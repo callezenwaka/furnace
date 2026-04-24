@@ -2,7 +2,7 @@ package httpapi
 
 import "encoding/json"
 
-// buildOpenAPISpec constructs the OpenAPI 3.1 document for the Authpilot
+// buildOpenAPISpec constructs the OpenAPI 3.1 document for the Furnace
 // management and SCIM APIs as a Go value. It is called once at handler
 // registration time and serialised to JSON. Adding or changing a route
 // requires updating this function — there is no separate file to drift.
@@ -10,7 +10,7 @@ func buildOpenAPISpec() []byte {
 	spec := map[string]any{
 		"openapi": "3.1.0",
 		"info": map[string]any{
-			"title":       "Authpilot Management API",
+			"title":       "Furnace Management API",
 			"description": "Local-first authentication development platform. Manage users, groups, flows, sessions, notifications, and SCIM provisioning.",
 			"version":     "1.0.0",
 		},
@@ -47,13 +47,13 @@ func components() map[string]any {
 			"ApiKey": map[string]any{
 				"type":        "apiKey",
 				"in":          "header",
-				"name":        "X-Authpilot-Api-Key",
-				"description": "Static API key. Only required when AUTHPILOT_API_KEY is set.",
+				"name":        "X-Furnace-Api-Key",
+				"description": "Static API key. Only required when FURNACE_API_KEY is set.",
 			},
 			"BearerToken": map[string]any{
 				"type":        "http",
 				"scheme":      "bearer",
-				"description": "Pass the API key as a Bearer token. Only required when AUTHPILOT_API_KEY is set.",
+				"description": "Pass the API key as a Bearer token. Only required when FURNACE_API_KEY is set.",
 			},
 		},
 		"schemas": map[string]any{
@@ -587,7 +587,7 @@ var cachedSpec = buildOpenAPISpec()
 const openAPIDocsHTML = `<!DOCTYPE html>
 <html>
 <head>
-  <title>Authpilot API Docs</title>
+  <title>Furnace API Docs</title>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">

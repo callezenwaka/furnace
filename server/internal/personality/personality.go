@@ -1,8 +1,8 @@
 // Package personality defines provider personalities — named sets of claim
-// mappings that make Authpilot's issued tokens look like those from a real
+// mappings that make Furnace's issued tokens look like those from a real
 // identity provider (Okta, Azure AD, Google, etc.).
 //
-// A personality remaps standard Authpilot claim names to the provider-idiomatic
+// A personality remaps standard Furnace claim names to the provider-idiomatic
 // names. For example, Azure AD calls the email field "preferred_username" and
 // adds a "tid" (tenant ID) claim; this package models that mapping so token
 // consumers can test against realistic payloads without a real IdP.
@@ -16,12 +16,12 @@ type Personality struct {
 	ID string
 	// Name is the human-readable display name.
 	Name string
-	// ClaimMappings renames Authpilot's standard claim keys to provider-specific
-	// ones. Key = Authpilot claim name, value = provider claim name.
+	// ClaimMappings renames Furnace's standard claim keys to provider-specific
+	// ones. Key = Furnace claim name, value = provider claim name.
 	// Claims not listed here are emitted as-is.
 	ClaimMappings map[string]string
 	// ExtraClaims are static additional claims always added to the token.
-	// These represent provider-specific claims that have no Authpilot equivalent.
+	// These represent provider-specific claims that have no Furnace equivalent.
 	ExtraClaims map[string]any
 }
 
@@ -56,8 +56,8 @@ func (p *Personality) Apply(claims map[string]any) map[string]any {
 // ---- Built-in personalities ----
 
 var (
-	// Default is the plain Authpilot token — no remapping.
-	Default = &Personality{ID: "default", Name: "Authpilot Default"}
+	// Default is the plain Furnace token — no remapping.
+	Default = &Personality{ID: "default", Name: "Furnace Default"}
 
 	Okta = &Personality{
 		ID:   "okta",

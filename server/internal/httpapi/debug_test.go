@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"authpilot/server/internal/store/memory"
+	"furnace/server/internal/store/memory"
 )
 
 // makeJWT builds a minimal unsigned JWT with the given claims (base64url-encoded
@@ -36,7 +36,7 @@ func newDebugRouter(t *testing.T) http.Handler {
 	})
 }
 
-func TestTokenCompare_MissingAuthpilotToken(t *testing.T) {
+func TestTokenCompare_MissingFurnaceToken(t *testing.T) {
 	r := newDebugRouter(t)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/debug/token-compare?provider_token=abc", nil)
 	req.Header.Set("Authorization", "Bearer test-key")
@@ -49,7 +49,7 @@ func TestTokenCompare_MissingAuthpilotToken(t *testing.T) {
 
 func TestTokenCompare_MissingProviderToken(t *testing.T) {
 	r := newDebugRouter(t)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/debug/token-compare?authpilot_token=abc", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/debug/token-compare?furnace_token=abc", nil)
 	req.Header.Set("Authorization", "Bearer test-key")
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
@@ -60,7 +60,7 @@ func TestTokenCompare_MissingProviderToken(t *testing.T) {
 
 func TestTokenCompare_InvalidJWT(t *testing.T) {
 	r := newDebugRouter(t)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/debug/token-compare?authpilot_token=notajwt&provider_token=notajwt", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/debug/token-compare?furnace_token=notajwt&provider_token=notajwt", nil)
 	req.Header.Set("Authorization", "Bearer test-key")
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
@@ -74,7 +74,7 @@ func TestTokenCompare_IdenticalTokens_NoDiff(t *testing.T) {
 	tok := makeJWT(t, claims)
 
 	r := newDebugRouter(t)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/debug/token-compare?authpilot_token="+tok+"&provider_token="+tok, nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/debug/token-compare?furnace_token="+tok+"&provider_token="+tok, nil)
 	req.Header.Set("Authorization", "Bearer test-key")
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
@@ -96,15 +96,15 @@ func TestTokenCompare_IdenticalTokens_NoDiff(t *testing.T) {
 }
 
 func TestTokenCompare_DifferentClaims_ReturnsDiff(t *testing.T) {
-	authpilotClaims := map[string]any{"sub": "u1", "email": "a@b.com", "name": "Alice"}
+	furnaceClaims := map[string]any{"sub": "u1", "email": "a@b.com", "name": "Alice"}
 	// Simulated Azure AD token: email renamed to preferred_username, tid added
 	providerClaims := map[string]any{"sub": "u1", "preferred_username": "a@b.com", "name": "Alice", "tid": "common"}
 
-	apTok := makeJWT(t, authpilotClaims)
+	apTok := makeJWT(t, furnaceClaims)
 	pvTok := makeJWT(t, providerClaims)
 
 	r := newDebugRouter(t)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/debug/token-compare?authpilot_token="+apTok+"&provider_token="+pvTok, nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/debug/token-compare?furnace_token="+apTok+"&provider_token="+pvTok, nil)
 	req.Header.Set("Authorization", "Bearer test-key")
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
@@ -120,11 +120,11 @@ func TestTokenCompare_DifferentClaims_ReturnsDiff(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected differences array, got %T", resp["differences"])
 	}
-	// email present in authpilot, missing in provider
-	// preferred_username missing in authpilot, present in provider
-	// tid missing in authpilot, present in provider
+	// email present in furnace, missing in provider
+	// preferred_username missing in furnace, present in provider
+	// tid missing in furnace, present in provider
 	if len(diffs) == 0 {
-		t.Fatal("expected diffs between authpilot and azure tokens")
+		t.Fatal("expected diffs between furnace and azure tokens")
 	}
 }
 
@@ -133,7 +133,7 @@ func TestTokenCompare_UnknownFlowID_Returns404(t *testing.T) {
 	tok := makeJWT(t, claims)
 
 	r := newDebugRouter(t)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/debug/token-compare?authpilot_token="+tok+"&provider_token="+tok+"&flow_id=no-such-flow", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/debug/token-compare?furnace_token="+tok+"&provider_token="+tok+"&flow_id=no-such-flow", nil)
 	req.Header.Set("Authorization", "Bearer test-key")
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
@@ -162,7 +162,7 @@ func TestDiffClaims_MissingInProvider(t *testing.T) {
 	}
 }
 
-func TestDiffClaims_MissingInAuthpilot(t *testing.T) {
+func TestDiffClaims_MissingInFurnace(t *testing.T) {
 	diffs := diffClaims(map[string]any{}, map[string]any{"tid": "common"})
 	if len(diffs) != 1 {
 		t.Fatalf("expected 1 diff, got %d", len(diffs))

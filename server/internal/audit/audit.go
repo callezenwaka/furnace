@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"authpilot/server/internal/domain"
-	"authpilot/server/internal/store"
+	"furnace/server/internal/domain"
+	"furnace/server/internal/store"
 )
 
 // Event type constants — dot-separated resource.action.

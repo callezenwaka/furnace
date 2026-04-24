@@ -1,9 +1,9 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "authpilot.fullname" . }}
+  name: {{ include "furnace.fullname" . }}
   labels:
-    {{- include "authpilot.labels" . | nindent 4 }}
+    {{- include "furnace.labels" . | nindent 4 }}
   {{- with .Values.podAnnotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -12,11 +12,11 @@ spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      {{- include "authpilot.selectorLabels" . | nindent 6 }}
+      {{- include "furnace.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "authpilot.selectorLabels" . | nindent 8 }}
+        {{- include "furnace.selectorLabels" . | nindent 8 }}
       {{- with .Values.podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}
@@ -31,15 +31,15 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
-        - name: authpilot
+        - name: furnace
           {{- with .Values.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          image: "{{ .Values.image.repository }}:{{ include "authpilot.imageTag" . }}"
+          image: "{{ .Values.image.repository }}:{{ include "furnace.imageTag" . }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
-            - --config=/etc/authpilot/config.yaml
+            - --config=/etc/furnace/config.yaml
           ports:
             - name: http
               containerPort: 8025
@@ -50,18 +50,18 @@ spec:
           env:
             {{- if or .Values.config.apiKey .Values.config.scimKey }}
             {{- if .Values.config.apiKey }}
-            - name: AUTHPILOT_API_KEY
+            - name: FURNACE_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "authpilot.fullname" . }}
-                  key: AUTHPILOT_API_KEY
+                  name: {{ include "furnace.fullname" . }}
+                  key: FURNACE_API_KEY
             {{- end }}
             {{- if .Values.config.scimKey }}
-            - name: AUTHPILOT_SCIM_KEY
+            - name: FURNACE_SCIM_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "authpilot.fullname" . }}
-                  key: AUTHPILOT_SCIM_KEY
+                  name: {{ include "furnace.fullname" . }}
+                  key: FURNACE_SCIM_KEY
             {{- end }}
             {{- end }}
           livenessProbe:
@@ -74,7 +74,7 @@ spec:
           {{- end }}
           volumeMounts:
             - name: config
-              mountPath: /etc/authpilot
+              mountPath: /etc/furnace
               readOnly: true
             {{- if .Values.persistence.enabled }}
             - name: data
@@ -83,11 +83,11 @@ spec:
       volumes:
         - name: config
           configMap:
-            name: {{ include "authpilot.fullname" . }}
+            name: {{ include "furnace.fullname" . }}
         {{- if .Values.persistence.enabled }}
         - name: data
           persistentVolumeClaim:
-            claimName: {{ include "authpilot.fullname" . }}
+            claimName: {{ include "furnace.fullname" . }}
         {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:

@@ -58,8 +58,8 @@ type Config struct {
 	Tenancy           TenancyMode    `yaml:"tenancy"`            // "single" (default) or "multi"
 	Tenants           []TenantConfig `yaml:"tenants"`            // populated only in multi mode
 	Provider          string         `yaml:"provider"`           // personality ID: "default", "okta", "azure-ad", etc.
-	SCIMClientMode    bool           `yaml:"scim_client_mode"`   // true when AUTHPILOT_SCIM_MODE=client
-	SCIMTargetURL     string         `yaml:"scim_target_url"`    // AUTHPILOT_SCIM_TARGET; required when SCIMClientMode=true
+	SCIMClientMode    bool           `yaml:"scim_client_mode"`   // true when FURNACE_SCIM_MODE=client
+	SCIMTargetURL     string         `yaml:"scim_target_url"`    // FURNACE_SCIM_TARGET; required when SCIMClientMode=true
 }
 
 type SAMLConfig struct {
@@ -105,7 +105,7 @@ func Defaults() Config {
 		LogLevel:     "info",
 		Persistence: PersistenceConfig{
 			Enabled:    false,
-			SQLitePath: "./data/authpilot.db",
+			SQLitePath: "./data/furnace.db",
 		},
 		Cleanup: CleanupConfig{
 			Interval:   60 * time.Second,
@@ -279,91 +279,91 @@ func mergeYAML(cfg *Config, from yamlConfig) error {
 }
 
 func applyEnv(cfg *Config) error {
-	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_HTTP_ADDR")); v != "" {
+	if v := strings.TrimSpace(os.Getenv("FURNACE_HTTP_ADDR")); v != "" {
 		cfg.HTTPAddr = v
 	}
-	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_PROTOCOL_ADDR")); v != "" {
+	if v := strings.TrimSpace(os.Getenv("FURNACE_PROTOCOL_ADDR")); v != "" {
 		cfg.ProtocolAddr = v
 	}
-	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_LOG_LEVEL")); v != "" {
+	if v := strings.TrimSpace(os.Getenv("FURNACE_LOG_LEVEL")); v != "" {
 		cfg.LogLevel = v
 	}
-	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_PERSISTENCE_ENABLED")); v != "" {
+	if v := strings.TrimSpace(os.Getenv("FURNACE_PERSISTENCE_ENABLED")); v != "" {
 		b, err := ParseBool(v)
 		if err != nil {
-			return fmt.Errorf("AUTHPILOT_PERSISTENCE_ENABLED: %w", err)
+			return fmt.Errorf("FURNACE_PERSISTENCE_ENABLED: %w", err)
 		}
 		cfg.Persistence.Enabled = b
 	}
-	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_SQLITE_PATH")); v != "" {
+	if v := strings.TrimSpace(os.Getenv("FURNACE_SQLITE_PATH")); v != "" {
 		cfg.Persistence.SQLitePath = v
 	}
-	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_CLEANUP_INTERVAL")); v != "" {
+	if v := strings.TrimSpace(os.Getenv("FURNACE_CLEANUP_INTERVAL")); v != "" {
 		d, err := time.ParseDuration(v)
 		if err != nil {
-			return fmt.Errorf("AUTHPILOT_CLEANUP_INTERVAL: %w", err)
+			return fmt.Errorf("FURNACE_CLEANUP_INTERVAL: %w", err)
 		}
 		cfg.Cleanup.Interval = d
 	}
-	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_FLOW_TTL")); v != "" {
+	if v := strings.TrimSpace(os.Getenv("FURNACE_FLOW_TTL")); v != "" {
 		d, err := time.ParseDuration(v)
 		if err != nil {
-			return fmt.Errorf("AUTHPILOT_FLOW_TTL: %w", err)
+			return fmt.Errorf("FURNACE_FLOW_TTL: %w", err)
 		}
 		cfg.Cleanup.FlowTTL = d
 	}
-	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_SESSION_TTL")); v != "" {
+	if v := strings.TrimSpace(os.Getenv("FURNACE_SESSION_TTL")); v != "" {
 		d, err := time.ParseDuration(v)
 		if err != nil {
-			return fmt.Errorf("AUTHPILOT_SESSION_TTL: %w", err)
+			return fmt.Errorf("FURNACE_SESSION_TTL: %w", err)
 		}
 		cfg.Cleanup.SessionTTL = d
 	}
-	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_OIDC_ISSUER_URL")); v != "" {
+	if v := strings.TrimSpace(os.Getenv("FURNACE_OIDC_ISSUER_URL")); v != "" {
 		cfg.OIDC.IssuerURL = v
 	}
-	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_API_KEY")); v != "" {
+	if v := strings.TrimSpace(os.Getenv("FURNACE_API_KEY")); v != "" {
 		cfg.APIKey = v
 	}
-	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_SCIM_KEY")); v != "" {
+	if v := strings.TrimSpace(os.Getenv("FURNACE_SCIM_KEY")); v != "" {
 		cfg.SCIMKey = v
 	}
-	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_RATE_LIMIT")); v != "" {
+	if v := strings.TrimSpace(os.Getenv("FURNACE_RATE_LIMIT")); v != "" {
 		n, err := strconv.Atoi(v)
 		if err != nil {
-			return fmt.Errorf("AUTHPILOT_RATE_LIMIT: %w", err)
+			return fmt.Errorf("FURNACE_RATE_LIMIT: %w", err)
 		}
 		cfg.RateLimit = n
 	}
-	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_SAML_ENTITY_ID")); v != "" {
+	if v := strings.TrimSpace(os.Getenv("FURNACE_SAML_ENTITY_ID")); v != "" {
 		cfg.SAML.EntityID = v
 	}
-	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_SAML_CERT_DIR")); v != "" {
+	if v := strings.TrimSpace(os.Getenv("FURNACE_SAML_CERT_DIR")); v != "" {
 		cfg.SAML.CertDir = v
 	}
-	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_HEADER_PROPAGATION")); v != "" {
+	if v := strings.TrimSpace(os.Getenv("FURNACE_HEADER_PROPAGATION")); v != "" {
 		b, err := ParseBool(v)
 		if err != nil {
-			return fmt.Errorf("AUTHPILOT_HEADER_PROPAGATION: %w", err)
+			return fmt.Errorf("FURNACE_HEADER_PROPAGATION: %w", err)
 		}
 		cfg.HeaderPropagation = b
 	}
-	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_TENANCY")); v != "" {
+	if v := strings.TrimSpace(os.Getenv("FURNACE_TENANCY")); v != "" {
 		cfg.Tenancy = TenancyMode(v)
 	}
-	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_PROVIDER")); v != "" {
+	if v := strings.TrimSpace(os.Getenv("FURNACE_PROVIDER")); v != "" {
 		cfg.Provider = v
 	}
-	if strings.ToLower(strings.TrimSpace(os.Getenv("AUTHPILOT_SCIM_MODE"))) == "client" {
+	if strings.ToLower(strings.TrimSpace(os.Getenv("FURNACE_SCIM_MODE"))) == "client" {
 		cfg.SCIMClientMode = true
 	}
-	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_SCIM_TARGET")); v != "" {
+	if v := strings.TrimSpace(os.Getenv("FURNACE_SCIM_TARGET")); v != "" {
 		cfg.SCIMTargetURL = v
 	}
-	if v := strings.TrimSpace(os.Getenv("AUTHPILOT_SEED_USERS")); v != "" {
+	if v := strings.TrimSpace(os.Getenv("FURNACE_SEED_USERS")); v != "" {
 		var users []SeedUser
 		if err := yaml.Unmarshal([]byte(v), &users); err != nil {
-			return fmt.Errorf("AUTHPILOT_SEED_USERS: %w", err)
+			return fmt.Errorf("FURNACE_SEED_USERS: %w", err)
 		}
 		cfg.SeedUsers = append(cfg.SeedUsers, users...)
 	}
@@ -421,7 +421,7 @@ func validate(cfg Config) error {
 		return fmt.Errorf("tenancy must be %q or %q, got %q", TenancySingle, TenancyMulti, cfg.Tenancy)
 	}
 	if cfg.SCIMClientMode && strings.TrimSpace(cfg.SCIMTargetURL) == "" {
-		return errors.New("scim_target_url (AUTHPILOT_SCIM_TARGET) is required when scim_client_mode is enabled")
+		return errors.New("scim_target_url (FURNACE_SCIM_TARGET) is required when scim_client_mode is enabled")
 	}
 	if cfg.Tenancy == TenancyMulti {
 		if len(cfg.Tenants) == 0 {

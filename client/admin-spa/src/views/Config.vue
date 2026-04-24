@@ -44,7 +44,7 @@
       <div class="card-body">
         <p style="margin:0 0 14px;font-size:13px;color:var(--text-muted)">
           The active personality shapes issued JWT claim names to match a real provider.
-          Set <code>AUTHPILOT_PROVIDER</code> or <code>provider:</code> in your YAML config and restart.
+          Set <code>FURNACE_PROVIDER</code> or <code>provider:</code> in your YAML config and restart.
         </p>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
           <div
@@ -58,7 +58,7 @@
         </div>
         <p v-if="activePersonality" style="margin:14px 0 0;font-size:12px;color:var(--text-muted)">
           Active: <strong>{{ activePersonality }}</strong> — change by setting
-          <code>AUTHPILOT_PROVIDER=&lt;id&gt;</code> and restarting.
+          <code>FURNACE_PROVIDER=&lt;id&gt;</code> and restarting.
         </p>
       </div>
     </div>
@@ -89,7 +89,7 @@ const loadError = ref('')
 
 const activePersonality = ref('')
 const personalities: Personality[] = [
-  { id: 'default',          name: 'Authpilot Default' },
+  { id: 'default',          name: 'Furnace Default' },
   { id: 'okta',             name: 'Okta' },
   { id: 'azure-ad',         name: 'Azure AD / Entra ID' },
   { id: 'google-workspace', name: 'Google Workspace' },

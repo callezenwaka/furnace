@@ -8,8 +8,8 @@
       <div class="card-header"><h2>Compare Tokens</h2></div>
       <div class="card-body">
         <div class="form-group">
-          <label>Authpilot Token (JWT)</label>
-          <textarea v-model="authpilotToken" rows="3" placeholder="eyJ…" style="font-family:monospace;font-size:12px;resize:vertical" />
+          <label>Furnace Token (JWT)</label>
+          <textarea v-model="furnaceToken" rows="3" placeholder="eyJ…" style="font-family:monospace;font-size:12px;resize:vertical" />
         </div>
         <div class="form-group">
           <label>Provider Token (JWT)</label>
@@ -47,7 +47,7 @@
             <thead>
               <tr>
                 <th>Claim</th>
-                <th>Authpilot value</th>
+                <th>Furnace value</th>
                 <th>Provider value</th>
                 <th>Note</th>
               </tr>
@@ -56,8 +56,8 @@
               <tr v-for="d in result.differences" :key="d.path">
                 <td><code>{{ d.path }}</code></td>
                 <td>
-                  <span v-if="d.authpilot_value !== null && d.authpilot_value !== undefined" style="font-family:monospace;font-size:12px">
-                    {{ JSON.stringify(d.authpilot_value) }}
+                  <span v-if="d.furnace_value !== null && d.furnace_value !== undefined" style="font-family:monospace;font-size:12px">
+                    {{ JSON.stringify(d.furnace_value) }}
                   </span>
                   <span v-else class="badge badge-gray">—</span>
                 </td>
@@ -77,9 +77,9 @@
       <!-- Side-by-side claims -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
         <div class="card">
-          <div class="card-header"><h2>Authpilot Claims</h2></div>
+          <div class="card-header"><h2>Furnace Claims</h2></div>
           <div class="card-body">
-            <pre style="font-size:12px;margin:0;overflow-x:auto;white-space:pre-wrap">{{ formatJSON(result.authpilot_token) }}</pre>
+            <pre style="font-size:12px;margin:0;overflow-x:auto;white-space:pre-wrap">{{ formatJSON(result.furnace_token) }}</pre>
           </div>
         </div>
         <div class="card">
@@ -98,18 +98,18 @@ import { ref } from 'vue'
 
 interface ClaimDiff {
   path: string
-  authpilot_value: any
+  furnace_value: any
   provider_value: any
   note: string
 }
 
 interface DiffResult {
-  authpilot_token: Record<string, any>
+  furnace_token: Record<string, any>
   provider_token: Record<string, any>
   differences: ClaimDiff[]
 }
 
-const authpilotToken = ref('')
+const furnaceToken = ref('')
 const providerToken = ref('')
 const flowID = ref('')
 const loading = ref(false)
@@ -119,7 +119,7 @@ const result = ref<DiffResult | null>(null)
 async function compare() {
   error.value = ''
   result.value = null
-  const ap = authpilotToken.value.trim()
+  const ap = furnaceToken.value.trim()
   const pv = providerToken.value.trim()
   if (!ap || !pv) {
     error.value = 'Both tokens are required.'
@@ -127,7 +127,7 @@ async function compare() {
   }
   loading.value = true
   try {
-    const params = new URLSearchParams({ authpilot_token: ap, provider_token: pv })
+    const params = new URLSearchParams({ furnace_token: ap, provider_token: pv })
     if (flowID.value.trim()) params.set('flow_id', flowID.value.trim())
     const res = await fetch('/api/v1/debug/token-compare?' + params.toString())
     const data = await res.json()

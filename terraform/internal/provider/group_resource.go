@@ -31,7 +31,7 @@ func (r *GroupResource) Metadata(_ context.Context, req resource.MetadataRequest
 
 func (r *GroupResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manages an Authpilot group via `POST/PUT/DELETE /api/v1/groups`.",
+		MarkdownDescription: "Manages an Furnace group via `POST/PUT/DELETE /api/v1/groups`.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				MarkdownDescription: "Unique group ID.",

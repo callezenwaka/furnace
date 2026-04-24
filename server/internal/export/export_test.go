@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"authpilot/server/internal/domain"
+	"furnace/server/internal/domain"
 )
 
 var testUsers = []domain.User{

@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"authpilot/server/internal/store/memory"
-	"authpilot/server/internal/store/tenanted"
-	"authpilot/server/internal/tenant"
+	"furnace/server/internal/store/memory"
+	"furnace/server/internal/store/tenanted"
+	"furnace/server/internal/tenant"
 )
 
 // newMultiTenantRouter builds a router with two isolated tenants.
@@ -66,7 +66,7 @@ func TestMultiTenant_UserIsolation(t *testing.T) {
 	body := `{"id":"usr_t1","email":"t1@example.com"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/users", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Authpilot-Api-Key", t1Key)
+	req.Header.Set("X-Furnace-Api-Key", t1Key)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusCreated {
@@ -75,7 +75,7 @@ func TestMultiTenant_UserIsolation(t *testing.T) {
 
 	// tenant1 can retrieve it.
 	req2 := httptest.NewRequest(http.MethodGet, "/api/v1/users/usr_t1", nil)
-	req2.Header.Set("X-Authpilot-Api-Key", t1Key)
+	req2.Header.Set("X-Furnace-Api-Key", t1Key)
 	rec2 := httptest.NewRecorder()
 	router.ServeHTTP(rec2, req2)
 	if rec2.Code != http.StatusOK {
@@ -84,7 +84,7 @@ func TestMultiTenant_UserIsolation(t *testing.T) {
 
 	// tenant2 cannot retrieve it.
 	req3 := httptest.NewRequest(http.MethodGet, "/api/v1/users/usr_t1", nil)
-	req3.Header.Set("X-Authpilot-Api-Key", t2Key)
+	req3.Header.Set("X-Furnace-Api-Key", t2Key)
 	rec3 := httptest.NewRecorder()
 	router.ServeHTTP(rec3, req3)
 	if rec3.Code != http.StatusNotFound {
@@ -96,7 +96,7 @@ func TestMultiTenant_InvalidKey_Returns401(t *testing.T) {
 	router, _, _ := newMultiTenantRouter()
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/users", nil)
-	req.Header.Set("X-Authpilot-Api-Key", "bad-key")
+	req.Header.Set("X-Furnace-Api-Key", "bad-key")
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusUnauthorized {
@@ -111,7 +111,7 @@ func TestMultiTenant_ListOnlyOwnUsers(t *testing.T) {
 		body := `{"id":"` + id + `","email":"` + id + `@t1.com"}`
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/users", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("X-Authpilot-Api-Key", t1Key)
+		req.Header.Set("X-Furnace-Api-Key", t1Key)
 		router.ServeHTTP(httptest.NewRecorder(), req)
 	}
 
@@ -119,12 +119,12 @@ func TestMultiTenant_ListOnlyOwnUsers(t *testing.T) {
 	body := `{"id":"usr_c","email":"c@t2.com"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/users", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Authpilot-Api-Key", t2Key)
+	req.Header.Set("X-Furnace-Api-Key", t2Key)
 	router.ServeHTTP(httptest.NewRecorder(), req)
 
 	// tenant1 list should return exactly 2 users.
 	req2 := httptest.NewRequest(http.MethodGet, "/api/v1/users", nil)
-	req2.Header.Set("X-Authpilot-Api-Key", t1Key)
+	req2.Header.Set("X-Furnace-Api-Key", t1Key)
 	rec2 := httptest.NewRecorder()
 	router.ServeHTTP(rec2, req2)
 
@@ -136,7 +136,7 @@ func TestMultiTenant_ListOnlyOwnUsers(t *testing.T) {
 
 	// tenant2 list should return exactly 1 user.
 	req3 := httptest.NewRequest(http.MethodGet, "/api/v1/users", nil)
-	req3.Header.Set("X-Authpilot-Api-Key", t2Key)
+	req3.Header.Set("X-Furnace-Api-Key", t2Key)
 	rec3 := httptest.NewRecorder()
 	router.ServeHTTP(rec3, req3)
 

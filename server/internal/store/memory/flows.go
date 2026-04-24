@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"authpilot/server/internal/domain"
-	"authpilot/server/internal/store"
+	"furnace/server/internal/domain"
+	"furnace/server/internal/store"
 )
 
 type FlowStore struct {

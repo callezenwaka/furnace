@@ -98,7 +98,7 @@ const pageTitle = computed(() => {
     case '/wsfed':    return 'WS-Federation'
     case '/diff':     return 'Token Diff'
     case '/config':   return 'Configuration'
-    default:          return 'Authpilot'
+    default:          return 'Furnace'
   }
 })
 

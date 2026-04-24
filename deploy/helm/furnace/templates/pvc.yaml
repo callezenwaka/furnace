@@ -2,9 +2,9 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ include "authpilot.fullname" . }}
+  name: {{ include "furnace.fullname" . }}
   labels:
-    {{- include "authpilot.labels" . | nindent 4 }}
+    {{- include "furnace.labels" . | nindent 4 }}
 spec:
   accessModes:
     - ReadWriteOnce

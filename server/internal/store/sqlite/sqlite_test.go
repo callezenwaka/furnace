@@ -5,11 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"authpilot/server/internal/domain"
+	"furnace/server/internal/domain"
 )
 
 func TestPersistenceRoundTripUsersAndGroups(t *testing.T) {
-	dbPath := filepath.Join(t.TempDir(), "authpilot.db")
+	dbPath := filepath.Join(t.TempDir(), "furnace.db")
 
 	first, err := New(dbPath)
 	if err != nil {

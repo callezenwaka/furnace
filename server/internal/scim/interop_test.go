@@ -2,7 +2,7 @@ package scim_test
 
 // SCIM 2.0 interoperability test — simulates the provisioning sequence an
 // external IdP (Okta, Azure AD, Google Workspace) would perform against
-// Authpilot's /scim/v2 endpoint.
+// Furnace's /scim/v2 endpoint.
 //
 // The sequence mirrors RFC 7644 §3 (SCIM protocol) and the Okta SCIM 2.0
 // provisioning profile:
@@ -28,8 +28,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"authpilot/server/internal/scim"
-	"authpilot/server/internal/store/memory"
+	"furnace/server/internal/scim"
+	"furnace/server/internal/store/memory"
 )
 
 // ---------------------------------------------------------------------------

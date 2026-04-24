@@ -10,12 +10,12 @@ COPY go.mod ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/authpilot ./server/cmd/authpilot
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/furnace ./server/cmd/furnace
 
 FROM cgr.dev/chainguard/static:latest
 WORKDIR /app
-COPY --from=builder /out/authpilot /app/authpilot
+COPY --from=builder /out/furnace /app/furnace
 COPY --from=builder /src/server/web/static /app/server/web/static
 
 EXPOSE 8025 8026
-ENTRYPOINT ["/app/authpilot"]
+ENTRYPOINT ["/app/furnace"]

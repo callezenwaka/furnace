@@ -8,20 +8,20 @@ import (
 	"net/http"
 	"time"
 
-	"authpilot/server/internal/config"
-	"authpilot/server/internal/domain"
-	"authpilot/server/internal/httpapi"
-	oidcengine "authpilot/server/internal/oidc"
-	"authpilot/server/internal/personality"
-	samlengine "authpilot/server/internal/saml"
-	"authpilot/server/internal/scim"
-	"authpilot/server/internal/scimclient"
-	"authpilot/server/internal/store"
-	"authpilot/server/internal/store/memory"
-	sqliteStore "authpilot/server/internal/store/sqlite"
-	"authpilot/server/internal/store/tenanted"
-	"authpilot/server/internal/tenant"
-	wsfedengine "authpilot/server/internal/wsfed"
+	"furnace/server/internal/config"
+	"furnace/server/internal/domain"
+	"furnace/server/internal/httpapi"
+	oidcengine "furnace/server/internal/oidc"
+	"furnace/server/internal/personality"
+	samlengine "furnace/server/internal/saml"
+	"furnace/server/internal/scim"
+	"furnace/server/internal/scimclient"
+	"furnace/server/internal/store"
+	"furnace/server/internal/store/memory"
+	sqliteStore "furnace/server/internal/store/sqlite"
+	"furnace/server/internal/store/tenanted"
+	"furnace/server/internal/tenant"
+	wsfedengine "furnace/server/internal/wsfed"
 )
 
 // auditCap is the maximum number of audit events held in memory.
@@ -201,7 +201,7 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 }
 
 func (a *App) Start(ctx context.Context) error {
-	a.logger.Info("authpilot starting",
+	a.logger.Info("furnace starting",
 		"http_addr", a.cfg.HTTPAddr,
 		"protocol_addr", a.cfg.ProtocolAddr,
 		"log_level", a.cfg.LogLevel,

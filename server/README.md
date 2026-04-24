@@ -1,9 +1,9 @@
 # Server
 
-Go backend service for Authpilot.
+Go backend service for Furnace.
 
 Planned ownership:
-- `cmd/authpilot`: binary entrypoint
+- `cmd/furnace`: binary entrypoint
 - `internal/httpapi`: management APIs and handlers
 - `internal/oidc`: OIDC engine
 - `internal/saml`: SAML engine

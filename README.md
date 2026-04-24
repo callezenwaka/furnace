@@ -1,4 +1,4 @@
-# Authpilot
+# Furnace
 
 A local-first authentication development platform. Build and test OIDC flows against a real protocol implementation before connecting to a production SSO provider.
 
@@ -12,8 +12,8 @@ A local-first authentication development platform. Build and test OIDC flows aga
 ## Quick Start
 
 ```bash
-git clone https://github.com/<owner>/authpilot
-cd authpilot
+git clone https://github.com/<owner>/furnace
+cd furnace
 make setup
 make dev
 ```
@@ -23,7 +23,7 @@ make dev
 With a config file:
 
 ```bash
-go run ./server/cmd/authpilot -config ./configs/authpilot.yaml
+go run ./server/cmd/furnace -config ./configs/furnace.yaml
 ```
 
 With Docker Compose:
@@ -44,7 +44,7 @@ docker compose up --build
 | `make run` | Start on dev-safe ports (`:18025` / `:18026`) |
 | `make run-default` | Start on default ports (`:8025` / `:8026`) |
 | `make run-auto` | Try default ports, fall back to dev-safe ports |
-| `make run-bg` | Start in background, logs to `.tmp/authpilot.log` |
+| `make run-bg` | Start in background, logs to `.tmp/furnace.log` |
 | `make health` | Check health endpoint |
 | `make stop` | Stop the tracked process |
 | `make stop ALL=1` | Broader cleanup including default ports |
@@ -69,36 +69,36 @@ Config precedence: runtime flags > environment variables > YAML file > defaults.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `AUTHPILOT_HTTP_ADDR` | `:8025` | Web UI and API address |
-| `AUTHPILOT_PROTOCOL_ADDR` | `:8026` | OIDC protocol address |
-| `AUTHPILOT_OIDC_ISSUER_URL` | `http://localhost:8026` | Issuer URL in tokens and discovery |
-| `AUTHPILOT_PERSISTENCE_ENABLED` | `false` | Enable SQLite persistence for users/groups |
-| `AUTHPILOT_SQLITE_PATH` | `./data/authpilot.db` | SQLite database path |
-| `AUTHPILOT_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, or `error` |
-| `AUTHPILOT_API_KEY` | _(unset)_ | Protect `/api/v1` with a static key |
-| `AUTHPILOT_SCIM_KEY` | _(unset)_ | Separate bearer key for `/scim/v2`; falls back to `API_KEY` |
-| `AUTHPILOT_SAML_ENTITY_ID` | `http://localhost:8026` | SAML IdP entity ID |
-| `AUTHPILOT_SAML_CERT_DIR` | _(unset)_ | Persist SAML signing key and cert across restarts |
-| `AUTHPILOT_RATE_LIMIT` | `0` (disabled) | Requests per minute per IP on `/api/v1` |
-| `AUTHPILOT_PROVIDER` | `default` | Active provider personality: `okta`, `azure-ad`, `google-workspace`, `github`, `onelogin` |
-| `AUTHPILOT_TENANCY` | `single` | `single` or `multi`; multi mode requires a `tenants:` block in YAML |
-| `AUTHPILOT_SCIM_MODE` | _(unset)_ | Set to `client` to push user mutations to an external SCIM target |
-| `AUTHPILOT_SCIM_TARGET` | _(unset)_ | External SCIM base URL (required when `AUTHPILOT_SCIM_MODE=client`) |
-| `AUTHPILOT_HEADER_PROPAGATION` | `false` | Inject `X-User-ID`, `X-User-Email`, `X-User-Groups` on `/userinfo` responses |
-| `AUTHPILOT_SEED_USERS` | _(unset)_ | Inline YAML list of users to create at startup |
+| `FURNACE_HTTP_ADDR` | `:8025` | Web UI and API address |
+| `FURNACE_PROTOCOL_ADDR` | `:8026` | OIDC protocol address |
+| `FURNACE_OIDC_ISSUER_URL` | `http://localhost:8026` | Issuer URL in tokens and discovery |
+| `FURNACE_PERSISTENCE_ENABLED` | `false` | Enable SQLite persistence for users/groups |
+| `FURNACE_SQLITE_PATH` | `./data/furnace.db` | SQLite database path |
+| `FURNACE_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, or `error` |
+| `FURNACE_API_KEY` | _(unset)_ | Protect `/api/v1` with a static key |
+| `FURNACE_SCIM_KEY` | _(unset)_ | Separate bearer key for `/scim/v2`; falls back to `API_KEY` |
+| `FURNACE_SAML_ENTITY_ID` | `http://localhost:8026` | SAML IdP entity ID |
+| `FURNACE_SAML_CERT_DIR` | _(unset)_ | Persist SAML signing key and cert across restarts |
+| `FURNACE_RATE_LIMIT` | `0` (disabled) | Requests per minute per IP on `/api/v1` |
+| `FURNACE_PROVIDER` | `default` | Active provider personality: `okta`, `azure-ad`, `google-workspace`, `github`, `onelogin` |
+| `FURNACE_TENANCY` | `single` | `single` or `multi`; multi mode requires a `tenants:` block in YAML |
+| `FURNACE_SCIM_MODE` | _(unset)_ | Set to `client` to push user mutations to an external SCIM target |
+| `FURNACE_SCIM_TARGET` | _(unset)_ | External SCIM base URL (required when `FURNACE_SCIM_MODE=client`) |
+| `FURNACE_HEADER_PROPAGATION` | `false` | Inject `X-User-ID`, `X-User-Email`, `X-User-Groups` on `/userinfo` responses |
+| `FURNACE_SEED_USERS` | _(unset)_ | Inline YAML list of users to create at startup |
 
 Enable persistence:
 
 ```bash
-go run ./server/cmd/authpilot -persistence-enabled=true -sqlite-path ./data/authpilot.db
+go run ./server/cmd/furnace -persistence-enabled=true -sqlite-path ./data/furnace.db
 ```
 
 ### Provider Personality
 
-Switch the claim shape Authpilot issues to match a target IdP:
+Switch the claim shape Furnace issues to match a target IdP:
 
 ```bash
-AUTHPILOT_PROVIDER=azure-ad go run ./server/cmd/authpilot
+FURNACE_PROVIDER=azure-ad go run ./server/cmd/furnace
 ```
 
 | Provider | Key remappings |
@@ -113,7 +113,7 @@ AUTHPILOT_PROVIDER=azure-ad go run ./server/cmd/authpilot
 ### Multi-Tenancy
 
 ```yaml
-# authpilot.yaml
+# furnace.yaml
 tenancy: multi
 tenants:
   - id: acme
@@ -130,9 +130,9 @@ Each tenant's API key scopes all store operations to that tenant. Single-mode be
 Push user mutations to an external SCIM provider:
 
 ```bash
-AUTHPILOT_SCIM_MODE=client \
-AUTHPILOT_SCIM_TARGET=https://scim.example.com/v2 \
-go run ./server/cmd/authpilot
+FURNACE_SCIM_MODE=client \
+FURNACE_SCIM_TARGET=https://scim.example.com/v2 \
+go run ./server/cmd/furnace
 ```
 
 Outbound requests are non-blocking — SCIM push failures are logged but do not fail management API calls. View the event log at `GET /api/v1/scim/events`.
@@ -140,8 +140,8 @@ Outbound requests are non-blocking — SCIM push failures are logged but do not 
 ### Seed Users
 
 ```bash
-AUTHPILOT_SEED_USERS='[{email: alice@example.com, display_name: Alice, active: true}]' \
-go run ./server/cmd/authpilot
+FURNACE_SEED_USERS='[{email: alice@example.com, display_name: Alice, active: true}]' \
+go run ./server/cmd/furnace
 ```
 
 Users are upserted idempotently at startup — safe to restart without duplicates.
@@ -190,7 +190,7 @@ curl http://localhost:8026/saml/slo?user_id=<user-id>
 
 ## SCIM 2.0 Endpoints
 
-Served on `:8025` under `/scim/v2`. Backed by the same user and group stores as the management API. Obeys the same API key protection when `AUTHPILOT_SCIM_KEY` (or `AUTHPILOT_API_KEY`) is set.
+Served on `:8025` under `/scim/v2`. Backed by the same user and group stores as the management API. Obeys the same API key protection when `FURNACE_SCIM_KEY` (or `FURNACE_API_KEY`) is set.
 
 | Endpoint | Methods | Description |
 |----------|---------|-------------|
@@ -283,13 +283,13 @@ curl -X POST http://localhost:8025/api/v1/tokens/mint \
 
 ### Token Compare (Debug)
 
-Compare the claim shape of an Authpilot token against a real provider token:
+Compare the claim shape of an Furnace token against a real provider token:
 
 ```bash
-curl "http://localhost:8025/api/v1/debug/token-compare?authpilot_token=eyJ...&provider_token=eyJ..."
+curl "http://localhost:8025/api/v1/debug/token-compare?furnace_token=eyJ...&provider_token=eyJ..."
 ```
 
-Returns a `differences` array with `path`, `authpilot_value`, `provider_value`, and `note` for each divergent claim.
+Returns a `differences` array with `path`, `furnace_value`, `provider_value`, and `note` for each divergent claim.
 
 ### Live Config
 
@@ -329,7 +329,7 @@ Repeat the same request within 5 minutes with the same key — the handler runs 
 ### Rate Limiting
 
 ```bash
-AUTHPILOT_RATE_LIMIT=60 go run ./server/cmd/authpilot
+FURNACE_RATE_LIMIT=60 go run ./server/cmd/furnace
 ```
 
 Requests over the limit receive `429 Too Many Requests` with `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`, and `Retry-After` headers.
@@ -337,11 +337,11 @@ Requests over the limit receive `429 Too Many Requests` with `X-RateLimit-Limit`
 ### Protected Mode
 
 ```bash
-AUTHPILOT_API_KEY=mysecret go run ./server/cmd/authpilot
+FURNACE_API_KEY=mysecret go run ./server/cmd/furnace
 ```
 
 ```bash
-curl -H "X-Authpilot-Api-Key: mysecret" http://localhost:8025/api/v1/users
+curl -H "X-Furnace-Api-Key: mysecret" http://localhost:8025/api/v1/users
 # or
 curl -H "Authorization: Bearer mysecret" http://localhost:8025/api/v1/users
 ```
@@ -398,7 +398,7 @@ Then visit `http://localhost:8025/admin`. Re-run after code changes if the page 
 - **Sessions** — list with expandable detail rows
 - **Audit Log** — filterable event table with event type and time range filters (`/admin/audit`)
 - **Config** — live token TTL editor and provider personality switcher (`/admin/config`)
-- **Token Diff** — side-by-side claim comparison between Authpilot and provider tokens (`/admin/diff`)
+- **Token Diff** — side-by-side claim comparison between Furnace and provider tokens (`/admin/diff`)
 - **SCIM** — SCIM client mode event log; expandable request/response rows (`/admin/scim`)
 
 A tenant selector in the topbar switches context in multi-tenant mode.
@@ -427,7 +427,7 @@ The hub polls `/api/v1/notifications/all` every 3 seconds.
 Enable `X-User-*` headers on `/userinfo` responses for service mesh and nginx `auth_request` patterns:
 
 ```bash
-AUTHPILOT_HEADER_PROPAGATION=true go run ./server/cmd/authpilot
+FURNACE_HEADER_PROPAGATION=true go run ./server/cmd/furnace
 ```
 
 Headers injected: `X-User-ID`, `X-User-Email`, `X-User-Groups` (comma-joined).
@@ -437,13 +437,13 @@ Headers injected: `X-User-ID`, `X-User-Email`, `X-User-Groups` (comma-joined).
 ### Helm Chart
 
 ```bash
-helm install authpilot ./deploy/helm/authpilot \
+helm install furnace ./deploy/helm/furnace \
   --set config.apiKey=mysecret \
   --set image.tag=v0.1.0
 ```
 
 ```bash
-helm upgrade authpilot ./deploy/helm/authpilot --set image.tag=v0.2.0
+helm upgrade furnace ./deploy/helm/furnace --set image.tag=v0.2.0
 ```
 
 Key values: `persistence.enabled`, `replicaCount`, `image.tag`, `config.apiKey`, `config.provider`, `config.tenancy`, `seedUsers`.
@@ -453,18 +453,18 @@ Key values: `persistence.enabled`, `replicaCount`, `image.tag`, `config.apiKey`,
 ```hcl
 terraform {
   required_providers {
-    authpilot = {
-      source = "callezenwaka/authpilot"
+    furnace = {
+      source = "callezenwaka/furnace"
     }
   }
 }
 
-provider "authpilot" {
+provider "furnace" {
   base_url = "http://localhost:8025"
   api_key  = "mysecret"
 }
 
-resource "authpilot_user" "alice" {
+resource "furnace_user" "alice" {
   email        = "alice@example.com"
   display_name = "Alice"
   active       = true
@@ -472,16 +472,16 @@ resource "authpilot_user" "alice" {
 ```
 
 ```bash
-terraform import authpilot_user.alice usr_123
+terraform import furnace_user.alice usr_123
 ```
 
 ### Kubernetes Operator
 
-Apply a user manifest — the operator syncs it to Authpilot via SCIM:
+Apply a user manifest — the operator syncs it to Furnace via SCIM:
 
 ```yaml
-apiVersion: authpilot.io/v1alpha1
-kind: AuthpilotUser
+apiVersion: furnace.io/v1alpha1
+kind: FurnaceUser
 metadata:
   name: alice
 spec:
@@ -494,7 +494,7 @@ spec:
 kubectl apply -f alice.yaml
 ```
 
-Configure the operator with `AUTHPILOT_SCIM_URL` and `AUTHPILOT_SCIM_KEY` environment variables (typically mounted from a Kubernetes Secret).
+Configure the operator with `FURNACE_SCIM_URL` and `FURNACE_SCIM_KEY` environment variables (typically mounted from a Kubernetes Secret).
 
 ## Release Versioning
 
@@ -502,10 +502,10 @@ Each component uses path-prefixed git tags. Pushing a tag triggers its own workf
 
 | Tag pattern | Workflow | Artifact |
 |-------------|----------|----------|
-| `server/v*` | `release-server.yml` | GitHub Release + `ghcr.io/<owner>/authpilot:<version>` |
+| `server/v*` | `release-server.yml` | GitHub Release + `ghcr.io/<owner>/furnace:<version>` |
 | `helm/v*` | `release-helm.yml` | Helm chart published to GitHub Pages |
 | `terraform/v*` | `release-terraform.yml` | Terraform provider binaries (GPG-signed) |
-| `operator/v*` | `release-operator.yml` | `ghcr.io/<owner>/authpilot-operator:<version>` |
+| `operator/v*` | `release-operator.yml` | `ghcr.io/<owner>/furnace-operator:<version>` |
 
 ## Folder Structure
 
@@ -515,7 +515,7 @@ Each component uses path-prefixed git tags. Pushing a tag triggers its own workf
 │   ├── admin-spa/        # Vue 3 admin SPA
 │   └── notify-spa/       # Vue 3 notification hub SPA
 ├── server/
-│   ├── cmd/authpilot/    # Binary entrypoint
+│   ├── cmd/furnace/    # Binary entrypoint
 │   ├── internal/
 │   │   ├── app/          # Startup wiring
 │   │   ├── audit/        # Audit event helpers and constants
@@ -538,7 +538,7 @@ Each component uses path-prefixed git tags. Pushing a tag triggers its own workf
 │       └── templates/    # Server-rendered login pages
 ├── configs/              # Example YAML configs
 ├── deploy/
-│   └── helm/authpilot/   # Helm chart
+│   └── helm/furnace/   # Helm chart
 ├── operator/             # Kubernetes operator (controller-runtime)
 ├── terraform/            # Terraform provider (Plugin Framework)
 └── scripts/              # Helper scripts

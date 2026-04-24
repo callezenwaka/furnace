@@ -3,8 +3,8 @@ package memory
 import (
 	"sync"
 
-	"authpilot/server/internal/domain"
-	"authpilot/server/internal/store"
+	"furnace/server/internal/domain"
+	"furnace/server/internal/store"
 )
 
 const defaultAuditCap = 10_000

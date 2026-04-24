@@ -8,7 +8,7 @@ import (
 	"net/http"
 )
 
-// apiRequest executes an HTTP request against the Authpilot management API
+// apiRequest executes an HTTP request against the Furnace management API
 // and returns the decoded JSON response body. Returns nil body (no error) for
 // successful DELETE responses.
 func (c *Client) apiRequest(method, path string, body map[string]any) (map[string]any, error) {

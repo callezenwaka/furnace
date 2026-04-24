@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"authpilot/server/internal/domain"
-	flowengine "authpilot/server/internal/flow"
-	"authpilot/server/internal/store/memory"
+	"furnace/server/internal/domain"
+	flowengine "furnace/server/internal/flow"
+	"furnace/server/internal/store/memory"
 )
 
 func newFlowRouterForTest() (http.Handler, *memory.UserStore, *memory.FlowStore) {

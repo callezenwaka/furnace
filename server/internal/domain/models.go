@@ -70,8 +70,8 @@ type SessionEvent struct {
 	Details   string    `json:"details,omitempty"`
 }
 
-// SCIMEvent records a single outbound SCIM request made when Authpilot runs
-// in client mode (AUTHPILOT_SCIM_MODE=client).
+// SCIMEvent records a single outbound SCIM request made when Furnace runs
+// in client mode (FURNACE_SCIM_MODE=client).
 type SCIMEvent struct {
 	ID             string    `json:"id"`
 	Timestamp      time.Time `json:"timestamp"`

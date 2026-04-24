@@ -1,15 +1,15 @@
 version: 2
 
-project_name: authpilot
+project_name: furnace
 
 before:
   hooks:
     - go mod tidy
 
 builds:
-  - id: authpilot
-    main: ./server/cmd/authpilot
-    binary: authpilot
+  - id: furnace
+    main: ./server/cmd/furnace
+    binary: furnace
     env:
       - CGO_ENABLED=0
     goos:
@@ -26,8 +26,8 @@ builds:
       - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
 
 archives:
-  - id: authpilot
-    builds: [authpilot]
+  - id: furnace
+    builds: [furnace]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     format_overrides:
       - goos: windows
@@ -43,14 +43,14 @@ checksum:
 release:
   github:
     owner: "{{ .Env.GITHUB_REPOSITORY_OWNER }}"
-    name: authpilot
+    name: furnace
   draft: false
   prerelease: auto
   name_template: "{{ .Tag }}"
   header: |
-    ## Authpilot {{ .Version }}
+    ## Furnace {{ .Version }}
 
-    Docker image: `ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/authpilot:{{ .Version }}`
+    Docker image: `ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/furnace:{{ .Version }}`
 
 changelog:
   sort: asc

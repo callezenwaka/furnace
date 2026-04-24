@@ -122,7 +122,7 @@
       <div class="card">
         <div class="card-header">
           <h2>{{ scimEvents.length }} event{{ scimEvents.length !== 1 ? 's' : '' }}</h2>
-          <span class="badge badge-gray">AUTHPILOT_SCIM_MODE=client</span>
+          <span class="badge badge-gray">FURNACE_SCIM_MODE=client</span>
         </div>
         <div class="table-wrap">
           <table v-if="scimEvents.length">
@@ -168,7 +168,7 @@
           </table>
           <div v-else-if="eventsDisabled" class="empty">
             SCIM client mode is not enabled.<br>
-            Set <code>AUTHPILOT_SCIM_MODE=client</code> and <code>AUTHPILOT_SCIM_TARGET=&lt;url&gt;</code> to activate.
+            Set <code>FURNACE_SCIM_MODE=client</code> and <code>FURNACE_SCIM_TARGET=&lt;url&gt;</code> to activate.
           </div>
           <div v-else class="empty">{{ eventsLoading ? 'Loading…' : 'No outbound SCIM events yet.' }}</div>
         </div>
