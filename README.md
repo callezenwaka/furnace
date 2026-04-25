@@ -32,13 +32,74 @@ With Docker Compose:
 docker compose up --build
 ```
 
+## Docker
+
+### How the image is built
+
+The Dockerfile uses a three-stage build:
+
+1. **`node:22-alpine`** — builds the admin SPA (`npm run build`)
+2. **`golang:1.26.2-alpine3.23`** — copies the SPA dist into `server/web/static/admin`, then compiles the Go binary with `-tags prod` which embeds the SPA and login templates via `//go:embed`
+3. **`cgr.dev/chainguard/static`** — copies only the binary; no Node, no Go toolchain, no static files on disk
+
+The result is a single self-contained binary in a minimal image. No volume mounts are needed for the admin UI.
+
+### Docker Compose (recommended)
+
+```bash
+docker compose up --build
+```
+
+This builds the image and starts Furnace with:
+- SQLite persistence at `/data/furnace.db` (named volume `furnace_data`)
+- Management API + login UI on port `8025`
+- Protocol server (OIDC / SAML / WS-Fed) on port `8026`
+
+To run without persisting data between restarts:
+
+```bash
+FURNACE_PERSISTENCE_ENABLED=false docker compose up --build
+```
+
+### docker build + docker run
+
+```bash
+docker build -t furnace .
+
+docker run --rm \
+  -p 8025:8025 \
+  -p 8026:8026 \
+  -v furnace_data:/data \
+  -e FURNACE_API_KEY=changeme \
+  furnace
+```
+
+### Ports
+
+| Port | Purpose |
+|------|---------|
+| `8025` | Management API (`/api/v1/`), admin SPA (`/admin`), login UI (`/login`) |
+| `8026` | Protocol server — OIDC, SAML, WS-Fed endpoints |
+
+### Environment variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `FURNACE_HTTP_ADDR` | `:8025` | Management server listen address |
+| `FURNACE_PROTOCOL_ADDR` | `:8026` | Protocol server listen address |
+| `FURNACE_API_KEY` | _(none)_ | Protects `/api/v1/`; omit for open local dev |
+| `FURNACE_PERSISTENCE_ENABLED` | `true` | `false` = in-memory only (resets on restart) |
+| `FURNACE_SQLITE_PATH` | `./data/furnace.db` | SQLite database path |
+| `FURNACE_CORS_ORIGINS` | _(none = `*`)_ | Comma-separated allowed origins for the protocol server |
+| `FURNACE_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, or `error` |
+
 ## Make Targets
 
 | Target | Description |
 |--------|-------------|
 | `make setup` | Install npm dependencies for both SPAs (run once after clone) |
 | `make dev` | Start server with hot-reload + watch both SPAs for changes |
-| `make build` | Compile the binary |
+| `make build` | Compile the production binary (`-tags prod`, embeds SPA and templates) |
 | `make test` | Run all tests |
 | `make lint` | Run golangci-lint |
 | `make run` | Start on dev-safe ports (`:18025` / `:18026`) |
