@@ -95,8 +95,9 @@ docker run --rm \
 
 ### Running the published image
 
-Pre-built images are published to [hub.docker.com/u/callezenwaka](https://hub.docker.com/u/callezenwaka). No clone required:
+Pre-built images are published to both registries on every release. No clone required:
 
+**Docker Hub:**
 ```bash
 docker run --rm \
   -p 8025:8025 \
@@ -105,33 +106,27 @@ docker run --rm \
   callezenwaka/furnace:latest
 ```
 
-Pin a specific release:
-
+**GitHub Container Registry (GHCR):**
 ```bash
 docker run --rm \
   -p 8025:8025 \
   -p 8026:8026 \
   -v furnace_data:/data \
-  -e FURNACE_API_KEY=changeme \
-  callezenwaka/furnace:v0.1.0
+  ghcr.io/callezenwaka/furnace:latest
 ```
+
+Pin a specific version by replacing `:latest` with `:v0.1.0`.
 
 ### Publishing a release
 
-Tag the commit and push — the release workflow builds and pushes to Docker Hub automatically:
+Tag the commit and push — `release-server.yml` builds multi-arch images (`linux/amd64`, `linux/arm64`) and pushes to both Docker Hub and GHCR automatically:
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag server/v0.1.0
+git push origin server/v0.1.0
 ```
 
-To publish manually:
-
-```bash
-docker build -t callezenwaka/furnace:v0.1.0 -t callezenwaka/furnace:latest .
-docker push callezenwaka/furnace:v0.1.0
-docker push callezenwaka/furnace:latest
-```
+Requires `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` set as repository secrets in GitHub → Settings → Secrets and variables → Actions.
 
 ## Make Targets
 
