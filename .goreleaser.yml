@@ -4,6 +4,7 @@ project_name: furnace
 
 before:
   hooks:
+    - sh -c "cd client/admin-spa && npm ci && npm run build"
     - go mod tidy
 
 builds:
@@ -12,6 +13,8 @@ builds:
     binary: furnace
     env:
       - CGO_ENABLED=0
+    tags:
+      - prod
     goos:
       - linux
       - darwin

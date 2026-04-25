@@ -17,13 +17,16 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-COPY --from=spa-builder /src/client/admin-spa/dist server/web/static/admin
+COPY --from=spa-builder /src/server/web/static/admin server/web/static/admin
 
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -tags prod -o /out/furnace ./server/cmd/furnace
+RUN mkdir -p /data
 
 FROM cgr.dev/chainguard/static:latest
 WORKDIR /app
 COPY --from=builder /out/furnace /app/furnace
+# /data is the SQLite volume mount point; chainguard nonroot uid/gid is 65532
+COPY --chown=65532:65532 --from=builder /data /data
 
 EXPOSE 8025 8026
 ENTRYPOINT ["/app/furnace"]
