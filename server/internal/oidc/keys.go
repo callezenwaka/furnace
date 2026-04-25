@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	jose "github.com/go-jose/go-jose/v3"
+	jose "github.com/go-jose/go-jose/v4"
 )
 
 // KeyManager holds the active RSA signing key and its published JWK set.
@@ -87,7 +87,7 @@ func (km *KeyManager) VerifyJWT(token string) (claims map[string]any, active boo
 	km.mu.RUnlock()
 
 	// Build a verifier from the published public keys.
-	jws, parseErr := jose.ParseSigned(token)
+	jws, parseErr := jose.ParseSigned(token, []jose.SignatureAlgorithm{jose.RS256})
 	if parseErr != nil {
 		return nil, false, nil // unparseable → inactive, not an error
 	}

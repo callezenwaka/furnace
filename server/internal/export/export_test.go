@@ -104,7 +104,9 @@ func TestExportSCIM(t *testing.T) {
 func TestExportSCIM_Schema(t *testing.T) {
 	data, _ := Users(testUsers, testGroups, FormatSCIM)
 	var resp scimListResponse
-	json.Unmarshal(data, &resp)
+	if err := json.Unmarshal(data, &resp); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
 	wantListSchema := "urn:ietf:params:scim:api:messages:2.0:ListResponse"
 	if len(resp.Schemas) == 0 || resp.Schemas[0] != wantListSchema {
 		t.Errorf("list schemas = %v, want [%s]", resp.Schemas, wantListSchema)
