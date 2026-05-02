@@ -4,7 +4,7 @@ project_name: furnace
 
 before:
   hooks:
-    - sh -c "cd client/admin-spa && npm ci && npm run build"
+    - sh -c "cd client && npm ci && npm run build"
     - go mod tidy
 
 builds:

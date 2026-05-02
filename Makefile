@@ -56,7 +56,7 @@ run: check-ports
 	@echo "Stop: press Ctrl+C"
 	@if [ "$(WATCH)" = "1" ] || [ "$(WATCH)" = "true" ]; then \
 		echo "Starting admin SPA watch build (log: .tmp/admin-watch.log)"; \
-		cd client/admin-spa && npm install && npm run build -- --watch > ../../.tmp/admin-watch.log 2>&1 & watcher_pid=$$!; \
+		cd client && npm install && npm run build -- --watch > ../../.tmp/admin-watch.log 2>&1 & watcher_pid=$$!; \
 		trap 'kill $$watcher_pid 2>/dev/null || true' INT TERM EXIT; \
 		go run ./server/cmd/furnace -http-addr $(RUN_HTTP_ADDR) -protocol-addr $(RUN_PROTOCOL_ADDR); \
 		status=$$?; \
@@ -88,7 +88,7 @@ run-auto:
 	echo "Stop: press Ctrl+C"; \
 	if [ "$(WATCH)" = "1" ] || [ "$(WATCH)" = "true" ]; then \
 		echo "Starting admin SPA watch build (log: .tmp/admin-watch.log)"; \
-		cd client/admin-spa && npm install && npm run build -- --watch > ../../.tmp/admin-watch.log 2>&1 & watcher_pid=$$!; \
+		cd client && npm install && npm run build -- --watch > ../../.tmp/admin-watch.log 2>&1 & watcher_pid=$$!; \
 		trap 'kill $$watcher_pid 2>/dev/null || true' INT TERM EXIT; \
 		go run ./server/cmd/furnace -http-addr $$http_addr -protocol-addr $$protocol_addr; \
 		status=$$?; \
@@ -163,15 +163,15 @@ health:
 dev:
 	@mkdir -p .tmp
 	@echo "Starting admin SPA watcher (log: .tmp/admin-watch.log)"
-	@cd client/admin-spa && npm install && npm run build -- --watch > ../../.tmp/admin-watch.log 2>&1 & echo $$! > .tmp/admin-spa.pid
+	@cd client && npm install && npm run build -- --watch > ../../.tmp/admin-watch.log 2>&1 & echo $$! > .tmp/admin-spa.pid
 	@echo "Starting Go server with hot-reload (air)"
 	@trap 'kill $$(cat .tmp/admin-spa.pid 2>/dev/null) 2>/dev/null || true; rm -f .tmp/admin-spa.pid' INT TERM EXIT; \
 	air
 
 setup:
-	cd client/admin-spa && npm install
+	cd client && npm install
 	@ln -sf ../../hooks/pre-commit .git/hooks/pre-commit
 	@echo "pre-commit hook installed"
 
 admin-build:
-	cd client/admin-spa && npm install && npm run build
+	cd client && npm install && npm run build

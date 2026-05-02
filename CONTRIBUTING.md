@@ -48,8 +48,7 @@ Open `http://localhost:8025` once the container starts.
 
 ```text
 .
-├── client/
-│   └── admin-spa/        # Vue 3 admin SPA
+├── client/               # Vue 3 admin SPA
 ├── server/
 │   ├── cmd/furnace/      # Binary entrypoint
 │   ├── internal/         # Protocol engine, API handlers, stores
