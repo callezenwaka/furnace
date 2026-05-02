@@ -11,17 +11,6 @@ import (
 	"furnace/server/internal/config"
 )
 
-// newTenantDecisionLog builds a decisionLog with per-tenant budgets wired in.
-func newTenantDecisionLog(t *testing.T, cfg config.OPADecisionLogConfig, budgets map[string]config.OPATenantBudget) *decisionLog {
-	t.Helper()
-	dl, err := newDecisionLog(cfg, budgets)
-	if err != nil {
-		t.Fatalf("newDecisionLog: %v", err)
-	}
-	t.Cleanup(func() { _ = dl.Close() })
-	return dl
-}
-
 // newBufDecisionLog returns a decisionLog that writes to a strings.Builder,
 // suitable for capturing output in per-tenant write() tests.
 func newBufDecisionLog(cfg config.OPADecisionLogConfig) (*decisionLog, *strings.Builder) {

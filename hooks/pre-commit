@@ -1,0 +1,21 @@
+#!/bin/sh
+# Pre-commit hook — mirrors the CI go job.
+# Install: make setup   (or: ln -sf ../../hooks/pre-commit .git/hooks/pre-commit)
+set -e
+
+echo "pre-commit: go vet"
+go vet ./...
+
+echo "pre-commit: go build"
+go build -o /dev/null ./server/cmd/furnace
+
+echo "pre-commit: go test"
+go test ./server/...
+
+if command -v golangci-lint >/dev/null 2>&1; then
+    echo "pre-commit: golangci-lint"
+    golangci-lint run
+else
+    echo "pre-commit: golangci-lint not found — skipping"
+    echo "           install: https://golangci-lint.run/welcome/install/"
+fi

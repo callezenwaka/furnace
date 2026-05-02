@@ -170,6 +170,8 @@ dev:
 
 setup:
 	cd client/admin-spa && npm install
+	@ln -sf ../../hooks/pre-commit .git/hooks/pre-commit
+	@echo "pre-commit hook installed"
 
 admin-build:
 	cd client/admin-spa && npm install && npm run build
