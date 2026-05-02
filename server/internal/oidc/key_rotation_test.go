@@ -203,14 +203,16 @@ func TestKeyManager_StartRotation_StopsOnContextCancel(t *testing.T) {
 	})
 
 	time.Sleep(testRotationTimeout)
-	before := rotations.Load()
 	cancel()
 
-	// After cancel, goroutine must stop. Allow one extra tick to drain.
-	time.Sleep(testRotationInterval * 3)
-	after := rotations.Load()
+	// Wait long enough for the goroutine to observe the cancellation and stop,
+	// including any in-flight rotation completing under the race detector.
+	time.Sleep(testRotationTimeout)
+	snapshot := rotations.Load()
 
-	if after > before+1 {
-		t.Errorf("rotation continued after context cancel: before=%d after=%d", before, after)
+	// Verify the count is now frozen: no further rotations should occur.
+	time.Sleep(testRotationInterval * 5)
+	if rotations.Load() != snapshot {
+		t.Errorf("rotation continued after context cancel and drain period")
 	}
 }
