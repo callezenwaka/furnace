@@ -15,6 +15,7 @@
   .spinner{width:32px;height:32px;border:3px solid #e2e4ea;border-top-color:#2563eb;border-radius:50%;animation:spin .8s linear infinite;margin-bottom:12px}
   @keyframes spin{to{rotate:360deg}}
   .waiting{color:#6b7280;font-size:.95rem}
+  .wa-err{color:#dc2626;font-size:13px;margin-bottom:8px}
 </style>
 </head>
 <body>
@@ -25,8 +26,8 @@
 
   {{if eq .Flow.State "webauthn_pending"}}
     <p>{{if .HasWebAuthnCredential}}Authenticate with your registered passkey.{{else}}Register a passkey to continue.{{end}}</p>
-    <p id="wa-err" style="color:#dc2626;font-size:13px;margin-bottom:8px"></p>
-    <button id="wa-btn" class="btn" onclick="doWebAuthn()"
+    <p id="wa-err" class="wa-err"></p>
+    <button id="wa-btn" type="button" class="btn" onclick="doWebAuthn()"
       data-has-cred="{{if .HasWebAuthnCredential}}true{{else}}false{{end}}">
       {{if .HasWebAuthnCredential}}Authenticate with passkey{{else}}Register &amp; authenticate{{end}}
     </button>

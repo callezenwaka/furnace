@@ -214,7 +214,6 @@ onUnmounted(() => clearInterval(badgePoll))
   inset: -4px;
   border-radius: 50%;
   background: #dc2626;
-  z-index: -1;
   opacity: 0;
   animation: badge-pulse 1.8s ease-out infinite;
 }
