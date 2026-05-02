@@ -208,16 +208,16 @@ func NewRouter(dep Dependencies) http.Handler {
 		listUsersHandler(users)(w, r)
 	}).Methods(http.MethodGet)
 	api.HandleFunc("/users", func(w http.ResponseWriter, r *http.Request) {
-		users, _, _, _, as := dep.resolveStores(r.Context())
-		createUserHandler(users, as, dep.SCIMClient)(w, r)
+		users, groups, _, _, as := dep.resolveStores(r.Context())
+		createUserHandler(users, groups, as, dep.SCIMClient)(w, r)
 	}).Methods(http.MethodPost)
 	api.HandleFunc("/users/{id}", func(w http.ResponseWriter, r *http.Request) {
 		users, _, _, _, _ := dep.resolveStores(r.Context())
 		getUserHandler(users)(w, r)
 	}).Methods(http.MethodGet)
 	api.HandleFunc("/users/{id}", func(w http.ResponseWriter, r *http.Request) {
-		users, _, _, _, as := dep.resolveStores(r.Context())
-		updateUserHandler(users, as, dep.SCIMClient)(w, r)
+		users, groups, _, _, as := dep.resolveStores(r.Context())
+		updateUserHandler(users, groups, as, dep.SCIMClient)(w, r)
 	}).Methods(http.MethodPut)
 	api.HandleFunc("/users/{id}", func(w http.ResponseWriter, r *http.Request) {
 		users, _, _, _, as := dep.resolveStores(r.Context())
@@ -585,7 +585,7 @@ func listUsersHandler(users store.UserStore) http.HandlerFunc {
 	}
 }
 
-func createUserHandler(users store.UserStore, as store.AuditStore, sc SCIMClient) http.HandlerFunc {
+func createUserHandler(users store.UserStore, groups store.GroupStore, as store.AuditStore, sc SCIMClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, ok := decodeUser(w, r.Body)
 		if !ok {
@@ -606,6 +606,7 @@ func createUserHandler(users store.UserStore, as store.AuditStore, sc SCIMClient
 			writeError(w, http.StatusInternalServerError, "create_user_failed", err.Error())
 			return
 		}
+		syncGroupMembership(groups, created.ID, nil, created.Groups)
 		audit.Emit(as, audit.EventUserCreated, "system", created.ID, map[string]any{"email": created.Email})
 		if sc != nil {
 			sc.UserCreated(created)
@@ -630,7 +631,7 @@ func getUserHandler(users store.UserStore) http.HandlerFunc {
 	}
 }
 
-func updateUserHandler(users store.UserStore, as store.AuditStore, sc SCIMClient) http.HandlerFunc {
+func updateUserHandler(users store.UserStore, groups store.GroupStore, as store.AuditStore, sc SCIMClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, ok := decodeUser(w, r.Body)
 		if !ok {
@@ -641,6 +642,7 @@ func updateUserHandler(users store.UserStore, as store.AuditStore, sc SCIMClient
 		if user.CreatedAt.IsZero() {
 			user.CreatedAt = time.Now().UTC()
 		}
+		existing, _ := users.GetByID(id)
 		updated, err := users.Update(user)
 		if err != nil {
 			if errors.Is(err, store.ErrNotFound) {
@@ -650,11 +652,62 @@ func updateUserHandler(users store.UserStore, as store.AuditStore, sc SCIMClient
 			writeError(w, http.StatusInternalServerError, "update_user_failed", err.Error())
 			return
 		}
+		syncGroupMembership(groups, updated.ID, existing.Groups, updated.Groups)
 		audit.Emit(as, audit.EventUserUpdated, "system", updated.ID, map[string]any{"email": updated.Email})
 		if sc != nil {
 			sc.UserUpdated(updated)
 		}
 		writeJSON(w, http.StatusOK, updated)
+	}
+}
+
+// syncGroupMembership reconciles group MemberIDs when a user's group list changes.
+// It adds the user to groups in newGroups and removes them from groups they left.
+func syncGroupMembership(groups store.GroupStore, userID string, oldGroups, newGroups []string) {
+	if groups == nil {
+		return
+	}
+	oldSet := make(map[string]struct{}, len(oldGroups))
+	for _, id := range oldGroups {
+		oldSet[id] = struct{}{}
+	}
+	newSet := make(map[string]struct{}, len(newGroups))
+	for _, id := range newGroups {
+		newSet[id] = struct{}{}
+	}
+	for _, gid := range newGroups {
+		if _, alreadyIn := oldSet[gid]; alreadyIn {
+			continue
+		}
+		g, err := groups.GetByID(gid)
+		if err != nil {
+			continue
+		}
+		for _, mid := range g.MemberIDs {
+			if mid == userID {
+				goto skipAdd
+			}
+		}
+		g.MemberIDs = append(g.MemberIDs, userID)
+		_, _ = groups.Update(g)
+	skipAdd:
+	}
+	for _, gid := range oldGroups {
+		if _, stillIn := newSet[gid]; stillIn {
+			continue
+		}
+		g, err := groups.GetByID(gid)
+		if err != nil {
+			continue
+		}
+		kept := g.MemberIDs[:0]
+		for _, mid := range g.MemberIDs {
+			if mid != userID {
+				kept = append(kept, mid)
+			}
+		}
+		g.MemberIDs = kept
+		_, _ = groups.Update(g)
 	}
 }
 

@@ -157,6 +157,7 @@ func (s *Store) migrate() error {
 	// Additive column migrations — idempotent via "duplicate column" error suppression.
 	addCols := []string{
 		`ALTER TABLE users ADD COLUMN password_hash TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE users ADD COLUMN active INTEGER NOT NULL DEFAULT 1`,
 		`ALTER TABLE opa_policies ADD COLUMN signature TEXT NOT NULL DEFAULT ''`,
 	}
 	for _, stmt := range addCols {

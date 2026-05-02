@@ -22,6 +22,7 @@ type RouterDeps struct {
 	Groups store.GroupStore
 }
 
+
 // NewRouter returns an http.Handler that serves all SCIM 2.0 endpoints under
 // the prefix /scim/v2. The caller is responsible for mounting it at that path.
 func NewRouter(dep RouterDeps) http.Handler {
@@ -31,7 +32,7 @@ func NewRouter(dep RouterDeps) http.Handler {
 	r.HandleFunc("/scim/v2/Schemas", schemasHandler).Methods(http.MethodGet)
 	r.HandleFunc("/scim/v2/Schemas/{id}", schemaByIDHandler).Methods(http.MethodGet)
 
-	r.HandleFunc("/scim/v2/Users", listUsersHandler(dep.Users)).Methods(http.MethodGet)
+	r.HandleFunc("/scim/v2/Users", listUsersHandler(dep.Users, dep.Groups)).Methods(http.MethodGet)
 	r.HandleFunc("/scim/v2/Users", createUserHandler(dep.Users)).Methods(http.MethodPost)
 	r.HandleFunc("/scim/v2/Users/{id}", getUserHandler(dep.Users)).Methods(http.MethodGet)
 	r.HandleFunc("/scim/v2/Users/{id}", replaceUserHandler(dep.Users)).Methods(http.MethodPut)
@@ -385,18 +386,21 @@ func schemaByIDHandler(w http.ResponseWriter, r *http.Request) {
 // Users
 // ---------------------------------------------------------------------------
 
-func listUsersHandler(users store.UserStore) http.HandlerFunc {
+func listUsersHandler(users store.UserStore, groups store.GroupStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		all, err := users.List()
 		if err != nil {
 			writeScimError(w, http.StatusInternalServerError, err.Error(), "")
 			return
 		}
-		// Resolve groups for membership refs.
+		var groupList []domain.Group
+		if groups != nil {
+			groupList, _ = groups.List()
+		}
 		filter := r.URL.Query().Get("filter")
 		var resources []any
 		for _, u := range all {
-			su := userToSCIM(u, nil)
+			su := userToSCIM(u, groupList)
 			if matchesFilter(su, filter) {
 				resources = append(resources, su)
 			}
