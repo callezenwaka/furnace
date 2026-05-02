@@ -256,6 +256,7 @@ type RuntimeOverrides struct {
 	ProtocolAddr       string
 	LogLevel           string
 	SQLitePath         string
+	Provider           string
 	PersistenceEnabled *bool
 	CleanupInterval    *time.Duration
 }
@@ -699,6 +700,9 @@ func applyRuntime(cfg *Config, runtime RuntimeOverrides) {
 	}
 	if runtime.CleanupInterval != nil {
 		cfg.Cleanup.Interval = *runtime.CleanupInterval
+	}
+	if runtime.Provider != "" {
+		cfg.Provider = runtime.Provider
 	}
 }
 

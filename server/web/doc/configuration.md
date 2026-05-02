@@ -67,11 +67,7 @@ environment:
 
 ## Provider Personality
 
-Switch the claim shape Furnace issues to match a target IdP:
-
-```bash
-FURNACE_PROVIDER=azure-ad go run ./server/cmd/furnace
-```
+Switch the claim shape Furnace issues to match a target IdP. Takes effect immediately — no restart required.
 
 | Provider | Key remappings |
 |----------|----------------|
@@ -83,7 +79,24 @@ FURNACE_PROVIDER=azure-ad go run ./server/cmd/furnace
 | `github` | `login`, `avatar_url` |
 | `onelogin` | `email`, `name` with OneLogin extras |
 
-Set via `FURNACE_PROVIDER` env var or `provider:` in YAML config. Requires restart.
+Four ways to set it — all are equivalent and live:
+
+**Admin UI** — go to **Config → Provider Personality** and click a card.
+
+**Environment variable:**
+```bash
+FURNACE_PROVIDER=okta docker run ...
+```
+
+**CLI flag:**
+```bash
+go run ./server/cmd/furnace -provider azure-ad
+```
+
+**YAML config** (`provider:` key):
+```yaml
+provider: okta
+```
 
 ---
 

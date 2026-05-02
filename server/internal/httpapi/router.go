@@ -68,6 +68,8 @@ type TokenTTLs struct {
 type ConfigPatcher interface {
 	GetTokenTTLs() TokenTTLs
 	SetTokenTTLs(TokenTTLs) error
+	GetProvider() string
+	SetProvider(id string) error
 }
 
 type Dependencies struct {
@@ -931,6 +933,7 @@ func getConfigHandler(cp ConfigPatcher, protocolURL string) http.HandlerFunc {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"tokens":       cp.GetTokenTTLs(),
 			"protocol_url": protocolURL,
+			"provider":     cp.GetProvider(),
 		})
 	}
 }
@@ -939,7 +942,8 @@ func getConfigHandler(cp ConfigPatcher, protocolURL string) http.HandlerFunc {
 // Restart-required fields (http_addr, protocol_addr, oidc.issuer_url, persistence)
 // are rejected with 400 restart_required: true if supplied.
 type patchConfigRequest struct {
-	Tokens            *TokenTTLs `json:"tokens"`
+	Tokens   *TokenTTLs `json:"tokens"`
+	Provider *string    `json:"provider"`
 	// Restart-required sentinel fields — presence alone triggers the guard.
 	HTTPAddr     *string `json:"http_addr"`
 	ProtocolAddr *string `json:"protocol_addr"`
@@ -975,8 +979,15 @@ func patchConfigHandler(cp ConfigPatcher) http.HandlerFunc {
 				return
 			}
 		}
+		if req.Provider != nil {
+			if err := cp.SetProvider(*req.Provider); err != nil {
+				writeAPIError(w, r, http.StatusBadRequest, "INVALID_REQUEST", err.Error(), false)
+				return
+			}
+		}
 		writeJSON(w, http.StatusOK, map[string]any{
-			"tokens": cp.GetTokenTTLs(),
+			"tokens":   cp.GetTokenTTLs(),
+			"provider": cp.GetProvider(),
 		})
 	}
 }

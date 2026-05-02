@@ -12,7 +12,8 @@ import (
 
 // fakeConfigPatcher implements ConfigPatcher for tests.
 type fakeConfigPatcher struct {
-	ttls TokenTTLs
+	ttls     TokenTTLs
+	provider string
 }
 
 func newFakePatcher() *fakeConfigPatcher {
@@ -24,7 +25,9 @@ func newFakePatcher() *fakeConfigPatcher {
 	}}
 }
 
-func (f *fakeConfigPatcher) GetTokenTTLs() TokenTTLs { return f.ttls }
+func (f *fakeConfigPatcher) GetTokenTTLs() TokenTTLs    { return f.ttls }
+func (f *fakeConfigPatcher) GetProvider() string         { return f.provider }
+func (f *fakeConfigPatcher) SetProvider(id string) error { f.provider = id; return nil }
 func (f *fakeConfigPatcher) SetTokenTTLs(t TokenTTLs) error {
 	if t.AccessTokenTTL != nil {
 		v := *t.AccessTokenTTL

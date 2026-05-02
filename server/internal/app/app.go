@@ -570,6 +570,23 @@ func (p *issuerConfigPatcher) SetTokenTTLs(ttls httpapi.TokenTTLs) error {
 	return nil
 }
 
+func (p *issuerConfigPatcher) GetProvider() string {
+	pers := p.issuer.GetPersonality()
+	if pers == nil {
+		return "default"
+	}
+	return pers.ID
+}
+
+func (p *issuerConfigPatcher) SetProvider(id string) error {
+	pers, ok := personality.Get(id)
+	if !ok {
+		return fmt.Errorf("unknown provider %q", id)
+	}
+	p.issuer.SetPersonality(pers)
+	return nil
+}
+
 // issuerMinter adapts oidcengine.Issuer to the httpapi.TokenMinter interface.
 // It converts between the oidc-package return type and httpapi.MintedTokens,
 // avoiding a circular import between httpapi and oidc.

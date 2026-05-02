@@ -23,6 +23,7 @@ func main() {
 	flag.StringVar(&runtime.ProtocolAddr, "protocol-addr", "", "Override protocol listen address")
 	flag.StringVar(&runtime.SQLitePath, "sqlite-path", "", "Override SQLite path")
 	flag.StringVar(&runtime.LogLevel, "log-level", "", "Override log level (debug|info|warn|error)")
+	flag.StringVar(&runtime.Provider, "provider", "", "Override provider personality (default|okta|azure-ad|google-workspace|google|github|onelogin)")
 
 	var persistenceEnabled string
 	flag.StringVar(&persistenceEnabled, "persistence-enabled", "", "Override persistence enabled (true|false)")

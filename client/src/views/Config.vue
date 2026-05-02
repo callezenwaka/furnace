@@ -39,27 +39,31 @@
     <div class="card" style="margin-bottom:20px">
       <div class="card-header">
         <h2>Provider Personality</h2>
-        <span class="badge badge-gray">restart required to change</span>
+        <span class="badge badge-green">live — no restart required</span>
       </div>
       <div class="card-body">
         <p style="margin:0 0 14px;font-size:13px;color:var(--text-muted)">
-          The active personality shapes issued JWT claim names to match a real provider.
-          Set <code>FURNACE_PROVIDER</code> or <code>provider:</code> in your YAML config and restart.
+          Click a card to switch the JWT claim shape instantly. Also settable via
+          <code>FURNACE_PROVIDER</code> env var, <code>provider:</code> in YAML, or <code>-provider</code> CLI flag.
         </p>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
           <div
             v-for="p in personalities"
             :key="p.id"
             :class="['personality-card', p.id === activePersonality ? 'personality-active' : '']"
+            @click="setProvider(p.id)"
+            style="cursor:pointer"
           >
             <div style="font-weight:600;font-size:13px">{{ p.name }}</div>
             <code style="font-size:11px;color:var(--text-muted)">{{ p.id }}</code>
           </div>
         </div>
-        <p v-if="activePersonality" style="margin:14px 0 0;font-size:12px;color:var(--text-muted)">
-          Active: <strong>{{ activePersonality }}</strong> — change by setting
-          <code>FURNACE_PROVIDER=&lt;id&gt;</code> and restarting.
-        </p>
+        <div style="margin-top:12px;min-height:20px;font-size:12px">
+          <span v-if="providerSaving" style="color:var(--text-muted)">Switching…</span>
+          <span v-else-if="providerSuccess" class="badge badge-green">Switched to {{ activePersonality }}</span>
+          <span v-else-if="providerError" class="error-msg">{{ providerError }}</span>
+          <span v-else-if="activePersonality" style="color:var(--text-muted)">Active: <strong>{{ activePersonality }}</strong></span>
+        </div>
       </div>
     </div>
 
@@ -165,6 +169,36 @@ const ttlError = ref('')
 const loadError = ref('')
 
 const activePersonality = ref('')
+const providerSaving   = ref(false)
+const providerSuccess  = ref(false)
+const providerError    = ref('')
+
+async function setProvider(id: string) {
+  if (id === activePersonality.value || providerSaving.value) return
+  providerSaving.value = true
+  providerSuccess.value = false
+  providerError.value = ''
+  try {
+    const res = await apiFetch('/api/v1/config', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider: id }),
+    })
+    if (!res.ok) {
+      const err = await res.json()
+      throw new Error(err?.error?.message ?? `${res.status}`)
+    }
+    const data = await res.json()
+    activePersonality.value = data.provider ?? id
+    providerSuccess.value = true
+    setTimeout(() => { providerSuccess.value = false }, 2500)
+  } catch (e: any) {
+    providerError.value = e.message
+  } finally {
+    providerSaving.value = false
+  }
+}
+
 const personalities: Personality[] = [
   { id: 'default',          name: 'Furnace Default' },
   { id: 'okta',             name: 'Okta' },
@@ -185,7 +219,7 @@ async function loadConfig() {
       id_token_ttl:      data.tokens?.id_token_ttl      ?? null,
       refresh_token_ttl: data.tokens?.refresh_token_ttl ?? null,
     }
-    activePersonality.value = data.provider ?? ''
+    activePersonality.value = data.provider ?? 'default'
   } catch (e: any) {
     loadError.value = `Failed to load config: ${e.message}`
   }
