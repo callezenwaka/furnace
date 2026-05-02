@@ -140,6 +140,14 @@ func (s *Store) migrate() error {
 			chain_hash TEXT NOT NULL
 		);`,
 		`CREATE INDEX IF NOT EXISTS audit_log_timestamp ON audit_log (timestamp);`,
+		`CREATE TABLE IF NOT EXISTS admins (
+			id TEXT PRIMARY KEY,
+			username TEXT NOT NULL UNIQUE,
+			display_name TEXT NOT NULL,
+			password_hash TEXT NOT NULL,
+			active INTEGER NOT NULL DEFAULT 1,
+			created_at TEXT NOT NULL
+		);`,
 	}
 	for _, stmt := range stmts {
 		if _, err := s.db.Exec(stmt); err != nil {

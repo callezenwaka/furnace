@@ -105,6 +105,17 @@ type SCIMEventStore interface {
 	List() []domain.SCIMEvent
 }
 
+// AdminStore manages admin accounts. Completely separate from simulation users.
+type AdminStore interface {
+	Create(admin domain.Admin) (domain.Admin, error)
+	GetByID(id string) (domain.Admin, error)
+	GetByUsername(username string) (domain.Admin, error)
+	List() ([]domain.Admin, error)
+	Update(admin domain.Admin) (domain.Admin, error)
+	Delete(id string) error
+	CountActive() (int, error)
+}
+
 // AuditFilter controls which events List returns.
 type AuditFilter struct {
 	EventType string    // empty = all

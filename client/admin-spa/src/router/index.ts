@@ -9,6 +9,7 @@ import Audit from '../views/Audit.vue'
 import Config from '../views/Config.vue'
 import Diff from '../views/Diff.vue'
 import Callback from '../views/Callback.vue'
+import Admins from '../views/Admins.vue'
 import { oidcEnabled, userManager } from '../auth'
 
 const router = createRouter({
@@ -24,6 +25,7 @@ const router = createRouter({
     { path: '/config',    component: Config },
     { path: '/diff',      component: Diff },
     { path: '/callback',  component: Callback },
+    { path: '/admins',    component: Admins },
   ],
 })
 

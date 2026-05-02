@@ -74,6 +74,8 @@ type Dependencies struct {
 	Flows           store.FlowStore
 	Sessions        store.SessionStore
 	Audit           store.AuditStore  // nil = audit disabled
+	Admins          store.AdminStore  // nil = admin auth disabled (no login gate on /admin)
+	AdminCookieKey  []byte            // raw HMAC key for admin session cookies; should equal cfg.SessionHashKey
 	AdminStaticDir  string
 	AdminFS         fs.FS  // non-nil in prod builds: serve admin SPA from embedded FS
 	APIKey          string        // single-tenant API key; required in single mode; ignored in multi-tenant mode (per-tenant keys live in TenantEntries)
@@ -136,7 +138,12 @@ func NewRouter(dep Dependencies) http.Handler {
 	r.Use(requestIDMiddleware)
 	r.Use(instrumentMiddleware)
 
-	registerAdminRoutes(r, dep.AdminStaticDir, dep.AdminFS, dep.APIKey, dep.SessionHashKey)
+	// Admin login / logout — public (no API key required).
+	r.HandleFunc("/admin/login", adminLoginPageHandler()).Methods(http.MethodGet)
+	r.HandleFunc("/admin/login", adminLoginSubmitHandler(dep.Admins, dep.AdminCookieKey)).Methods(http.MethodPost)
+	r.HandleFunc("/admin/logout", adminLogoutHandler()).Methods(http.MethodPost)
+
+	registerAdminRoutes(r, dep.AdminStaticDir, dep.AdminFS, dep.APIKey, dep.SessionHashKey, dep.Admins, dep.AdminCookieKey)
 
 	r.HandleFunc("/", homeHandler(dep.APIKey)).Methods(http.MethodGet)
 
@@ -321,6 +328,15 @@ func NewRouter(dep Dependencies) http.Handler {
 
 	api.HandleFunc("/scim/events", scimEventsHandler(dep.SCIMEvents)).Methods(http.MethodGet)
 
+	if dep.Admins != nil {
+		api.HandleFunc("/admins", adminListHandler(dep.Admins)).Methods(http.MethodGet)
+		api.HandleFunc("/admins", adminCreateHandler(dep.Admins)).Methods(http.MethodPost)
+		api.HandleFunc("/admins/{id}", adminGetHandler(dep.Admins)).Methods(http.MethodGet)
+		api.HandleFunc("/admins/{id}", adminPatchHandler(dep.Admins)).Methods(http.MethodPatch)
+		api.HandleFunc("/admins/{id}", adminDeleteHandler(dep.Admins)).Methods(http.MethodDelete)
+		api.HandleFunc("/admins/{id}/password", adminChangePasswordHandler(dep.Admins)).Methods(http.MethodPost)
+	}
+
 	if dep.APIKeyStore != nil {
 		api.HandleFunc("/api-keys", listAPIKeysHandler(dep.APIKeyStore)).Methods(http.MethodGet)
 		api.HandleFunc("/api-keys", createAPIKeyHandler(dep.APIKeyStore)).Methods(http.MethodPost)
@@ -440,14 +456,21 @@ func exportHandler(users store.UserStore, groups store.GroupStore) http.HandlerF
 	}
 }
 
-func registerAdminRoutes(r *mux.Router, adminStaticDir string, adminFS fs.FS, apiKey, sessionHashKey string) {
+func registerAdminRoutes(r *mux.Router, adminStaticDir string, adminFS fs.FS, apiKey, sessionHashKey string, admins store.AdminStore, cookieKey []byte) {
+	wrap := func(h http.Handler) http.Handler {
+		if admins == nil {
+			return h
+		}
+		return requireAdminSession(admins, cookieKey, h)
+	}
+
 	if adminFS != nil {
 		// Prod: serve from embedded filesystem.
 		fileServer := http.FileServer(http.FS(adminFS))
 		r.PathPrefix("/admin/assets/").Handler(http.StripPrefix("/admin/", fileServer))
 		r.Handle("/admin/vite.svg", http.StripPrefix("/admin/", fileServer))
-		r.HandleFunc("/admin", serveAdminIndexFS(adminFS, apiKey, sessionHashKey))
-		r.PathPrefix("/admin/").HandlerFunc(serveAdminIndexFS(adminFS, apiKey, sessionHashKey))
+		r.Handle("/admin", wrap(http.HandlerFunc(serveAdminIndexFS(adminFS, apiKey, sessionHashKey))))
+		r.PathPrefix("/admin/").Handler(wrap(http.HandlerFunc(serveAdminIndexFS(adminFS, apiKey, sessionHashKey))))
 		return
 	}
 
@@ -460,8 +483,8 @@ func registerAdminRoutes(r *mux.Router, adminStaticDir string, adminFS fs.FS, ap
 
 	r.PathPrefix("/admin/assets/").Handler(adminAssets)
 	r.Handle("/admin/vite.svg", adminAssets)
-	r.HandleFunc("/admin", serveAdminIndex(adminIndexPath, apiKey, sessionHashKey))
-	r.PathPrefix("/admin/").HandlerFunc(serveAdminIndex(adminIndexPath, apiKey, sessionHashKey))
+	r.Handle("/admin", wrap(http.HandlerFunc(serveAdminIndex(adminIndexPath, apiKey, sessionHashKey))))
+	r.PathPrefix("/admin/").Handler(wrap(http.HandlerFunc(serveAdminIndex(adminIndexPath, apiKey, sessionHashKey))))
 }
 
 // injectAdminConfig inserts window.__FURNACE__ config before </head> so the SPA

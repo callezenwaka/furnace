@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Furnace · Admin Login</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%232563eb'/%3E%3Ctext x='7' y='24' font-size='20' font-weight='700' font-family='system-ui,sans-serif' fill='white'%3EF%3C/text%3E%3C/svg%3E">
+<style>
+  *,*::before,*::after{box-sizing:border-box}
+  body{margin:0;background:#0f172a;font-family:system-ui,-apple-system,sans-serif;font-size:14px;color:#e2e8f0;display:flex;min-height:100vh;align-items:center;justify-content:center}
+  .card{background:#1e293b;border:1px solid #334155;border-radius:10px;box-shadow:0 4px 24px rgba(0,0,0,.4);width:100%;max-width:400px;padding:36px}
+  .logo{font-weight:700;font-size:18px;color:#f1f5f9;margin-bottom:28px;letter-spacing:.02em}.logo span{color:#2563eb}
+  h1{margin:0 0 4px;font-size:1.2rem;font-weight:700;color:#f1f5f9}
+  .sub{color:#64748b;font-size:.875rem;margin-bottom:24px}
+  .err{color:#fca5a5;font-size:.875rem;margin-bottom:16px;padding:10px 12px;background:rgba(220,38,38,.15);border:1px solid rgba(220,38,38,.3);border-radius:6px}
+  label{display:block;font-size:.8rem;font-weight:500;color:#94a3b8;margin-bottom:5px}
+  input{display:block;width:100%;padding:9px 12px;background:#0f172a;border:1px solid #334155;border-radius:6px;color:#f1f5f9;font-size:.95rem;margin-bottom:16px;outline:none;transition:border-color .15s}
+  input:focus{border-color:#2563eb}
+  input::placeholder{color:#475569}
+  button{width:100%;padding:10px 18px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:.95rem;font-weight:500;cursor:pointer;transition:background .15s;margin-top:4px}
+  button:hover{background:#1d4ed8}
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">Fur<span>nace</span></div>
+    <h1>Admin Sign In</h1>
+    <p class="sub">Enter your admin credentials to continue</p>
+    {{if .HasError}}<div class="err">{{.Error}}</div>{{end}}
+    <form method="post" action="/admin/login">
+      <label for="username">Username</label>
+      <input id="username" type="text" name="username" autocomplete="username" autofocus placeholder="admin">
+      <label for="password">Password</label>
+      <input id="password" type="password" name="password" autocomplete="current-password" placeholder="••••••••">
+      <button type="submit">Sign In</button>
+    </form>
+  </div>
+</body>
+</html>

@@ -117,6 +117,15 @@ type Policy struct {
 	Signature string `json:"-"`
 }
 
+type Admin struct {
+	ID           string    `json:"id"`
+	Username     string    `json:"username"`
+	DisplayName  string    `json:"display_name"`
+	PasswordHash string    `json:"-"`
+	Active       bool      `json:"active"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
 type Session struct {
 	ID           string         `json:"id"`
 	UserID       string         `json:"user_id"`

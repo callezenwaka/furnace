@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"furnace/server/internal/authevents"
+	"furnace/server/internal/platform/password"
 	"furnace/server/internal/config"
 	"furnace/server/internal/domain"
 	"furnace/server/internal/httpapi"
@@ -61,6 +62,7 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 	var sessions store.SessionStore
 	var policies store.PolicyStore
 	var apiKeys store.APIKeyStore
+	var admins store.AdminStore
 	var readiness func() error
 	var auditStore store.AuditStore = memory.NewAuditStore(auditCap)
 
@@ -78,6 +80,7 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 		policies = sq.Policies()
 		apiKeys = sq.APIKeys()
 		auditStore = sq.Audit()
+		admins = sq.Admins()
 		closers = append(closers, sq.Close)
 		readiness = sq.Ping
 	} else {
@@ -85,11 +88,16 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 		groups = memory.NewGroupStore()
 		flows = memory.NewFlowStore()
 		sessions = memory.NewSessionStore()
+		admins = memory.NewAdminStore()
 	}
 	scimEventStore := memory.NewSCIMEventStore(auditCap)
 
 	if err := seedUsers(users, cfg.SeedUsers); err != nil {
 		return nil, fmt.Errorf("seed users: %w", err)
+	}
+
+	if err := bootstrapAdmin(admins); err != nil {
+		return nil, fmt.Errorf("bootstrap admin: %w", err)
 	}
 
 	if len(cfg.SessionHashKey) == 0 {
@@ -189,6 +197,8 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 		Flows:             flows,
 		Sessions:          sessions,
 		Audit:             auditStore,
+		Admins:            admins,
+		AdminCookieKey:    cfg.SessionHashKey,
 		APIKey:            cfg.APIKey,
 		SessionHashKey:    base64.StdEncoding.EncodeToString(cfg.SessionHashKey),
 		SCIMKey:           cfg.SCIMKey,
@@ -433,6 +443,30 @@ func buildTenantStores(
 	}
 
 	return tenanted.NewDispatcher(sets), entries
+}
+
+// bootstrapAdmin creates the default admin/admin account when no admins exist.
+func bootstrapAdmin(admins store.AdminStore) error {
+	count, err := admins.CountActive()
+	if err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+	hash, err := password.Hash("admin")
+	if err != nil {
+		return fmt.Errorf("hash default admin password: %w", err)
+	}
+	_, err = admins.Create(domain.Admin{
+		ID:           "adm_default",
+		Username:     "admin",
+		DisplayName:  "Admin",
+		PasswordHash: hash,
+		Active:       true,
+		CreatedAt:    time.Now().UTC(),
+	})
+	return err
 }
 
 // seedUsers upserts each seed user into the store. Create is tried first;
