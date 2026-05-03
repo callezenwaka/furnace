@@ -28,6 +28,11 @@
   .no-match{color:#6b7280;font-size:.875rem;padding:8px 0;display:none}
   button{width:100%;margin-top:16px;padding:9px 18px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:.95rem;font-weight:500;cursor:pointer;transition:background .15s}
   button:hover{background:#1d4ed8}
+  .empty-state{text-align:center;padding:24px 0 8px;color:#6b7280}
+  .empty-state svg{display:block;margin:0 auto 12px}
+  .empty-state p{margin:0 0 8px;font-size:.9rem}
+  .empty-state a{display:inline-block;margin-top:12px;padding:9px 18px;background:#2563eb;color:#fff;border-radius:6px;font-size:.9rem;font-weight:500;text-decoration:none;transition:background .15s}
+  .empty-state a:hover{background:#1d4ed8}
 </style>
 </head>
 <body>
@@ -36,6 +41,14 @@
     <h1>Sign In</h1>
     <p class="sub">Select your account to continue</p>
     {{if .HasError}}<div class="err">{{.Error}}</div>{{end}}
+    {{if eq (len .Users) 0}}
+    <div class="empty-state">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+      <p>No test accounts have been added yet.</p>
+      <p>Add users in the admin panel, then return here to sign in.</p>
+      <a href="/admin/users">Go to Admin → Users</a>
+    </div>
+    {{else}}
     <form method="post" action="/login/select-user?flow_id={{.FlowID}}">
       <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
       {{if gt (len .Users) 5}}
@@ -55,6 +68,7 @@
       </div>
       <button type="submit">Continue</button>
     </form>
+    {{end}}
     <script>
       const search = document.getElementById('search');
       if (search) {

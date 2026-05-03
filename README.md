@@ -4,6 +4,21 @@ A local-first authentication development platform. Build and test OIDC, SAML, an
 WS-Federation flows against a real protocol implementation before connecting to a
 production SSO provider.
 
+## Development Phase:
+
+- Build your auth integration against Furnace's local endpoints
+- Test OIDC, SAML, WS-Fed flows without external accounts
+- Iterate on MFA flows (TOTP, push, SMS, magic links)
+- Debug tokens, assertions, and protocol exchanges in real-time
+- Run integration tests in CI/CD without external dependencies
+
+## Migration Phase:
+
+- Switch provider personalities (Okta → Azure AD) with zero code changes
+- Export user data and group mappings
+- Compare Furnace's responses against real provider responses
+- Gradually migrate production traffic while keeping Furnace for dev/test
+
 ## Ports
 
 | Port | Purpose |
