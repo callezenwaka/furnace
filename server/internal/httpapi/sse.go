@@ -34,9 +34,12 @@ func (b *SSEBroadcaster) subscribe() chan string {
 
 func (b *SSEBroadcaster) unsubscribe(ch chan string) {
 	b.mu.Lock()
-	delete(b.subs, ch)
-	b.mu.Unlock()
-	close(ch)
+	defer b.mu.Unlock()
+	if _, ok := b.subs[ch]; ok {
+		delete(b.subs, ch)
+		close(ch)
+	}
+	// If not found, Shutdown() already removed and closed this channel.
 }
 
 // Send broadcasts a named event to all subscribers. Non-blocking: slow consumers drop the event.
@@ -48,6 +51,17 @@ func (b *SSEBroadcaster) Send(eventType string) {
 		case ch <- eventType:
 		default:
 		}
+	}
+}
+
+// Shutdown closes all subscriber channels so SSE handlers return immediately,
+// allowing httpServer.Shutdown to drain without waiting the full timeout.
+func (b *SSEBroadcaster) Shutdown() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	for ch := range b.subs {
+		delete(b.subs, ch)
+		close(ch)
 	}
 }
 

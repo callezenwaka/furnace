@@ -31,9 +31,9 @@ func (s *UserStore) Create(user domain.User) (domain.User, error) {
 	}
 
 	_, err = s.db.Exec(`
-		INSERT INTO users (id, email, display_name, groups_json, mfa_method, next_flow, claims_json, phone_number, password_hash, active, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, user.ID, user.Email, user.DisplayName, groupsJSON, user.MFAMethod, user.NextFlow, claimsJSON, user.PhoneNumber, user.PasswordHash, boolToInt(user.Active), user.CreatedAt.UTC().Format(time.RFC3339Nano))
+		INSERT INTO users (id, email, display_name, groups_json, mfa_method, next_flow, claims_json, phone_number, password_hash, active, webauthn_credentials, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, user.ID, user.Email, user.DisplayName, groupsJSON, user.MFAMethod, user.NextFlow, claimsJSON, user.PhoneNumber, user.PasswordHash, boolToInt(user.Active), user.WebAuthnCredentials, user.CreatedAt.UTC().Format(time.RFC3339Nano))
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed: users.email") {
 			return domain.User{}, store.ErrConflict
@@ -45,7 +45,7 @@ func (s *UserStore) Create(user domain.User) (domain.User, error) {
 
 func (s *UserStore) GetByID(id string) (domain.User, error) {
 	row := s.db.QueryRow(`
-		SELECT id, email, display_name, groups_json, mfa_method, next_flow, claims_json, phone_number, password_hash, active, created_at
+		SELECT id, email, display_name, groups_json, mfa_method, next_flow, claims_json, phone_number, password_hash, active, webauthn_credentials, created_at
 		FROM users
 		WHERE id = ?
 	`, id)
@@ -54,7 +54,7 @@ func (s *UserStore) GetByID(id string) (domain.User, error) {
 
 func (s *UserStore) List() ([]domain.User, error) {
 	rows, err := s.db.Query(`
-		SELECT id, email, display_name, groups_json, mfa_method, next_flow, claims_json, phone_number, password_hash, active, created_at
+		SELECT id, email, display_name, groups_json, mfa_method, next_flow, claims_json, phone_number, password_hash, active, webauthn_credentials, created_at
 		FROM users
 	`)
 	if err != nil {
@@ -86,9 +86,9 @@ func (s *UserStore) Update(user domain.User) (domain.User, error) {
 
 	res, err := s.db.Exec(`
 		UPDATE users
-		SET email = ?, display_name = ?, groups_json = ?, mfa_method = ?, next_flow = ?, claims_json = ?, phone_number = ?, password_hash = ?, active = ?, created_at = ?
+		SET email = ?, display_name = ?, groups_json = ?, mfa_method = ?, next_flow = ?, claims_json = ?, phone_number = ?, password_hash = ?, active = ?, webauthn_credentials = ?, created_at = ?
 		WHERE id = ?
-	`, user.Email, user.DisplayName, groupsJSON, user.MFAMethod, user.NextFlow, claimsJSON, user.PhoneNumber, user.PasswordHash, boolToInt(user.Active), user.CreatedAt.UTC().Format(time.RFC3339Nano), user.ID)
+	`, user.Email, user.DisplayName, groupsJSON, user.MFAMethod, user.NextFlow, claimsJSON, user.PhoneNumber, user.PasswordHash, boolToInt(user.Active), user.WebAuthnCredentials, user.CreatedAt.UTC().Format(time.RFC3339Nano), user.ID)
 	if err != nil {
 		return domain.User{}, fmt.Errorf("update user: %w", err)
 	}
@@ -158,6 +158,7 @@ func scanUser(s scanner) (domain.User, error) {
 		&user.PhoneNumber,
 		&user.PasswordHash,
 		&activeInt,
+		&user.WebAuthnCredentials,
 		&createdAt,
 	)
 	user.Active = activeInt != 0

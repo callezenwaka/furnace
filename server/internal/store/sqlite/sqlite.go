@@ -58,6 +58,9 @@ func (s *Store) migrate() error {
 			next_flow TEXT NOT NULL,
 			claims_json TEXT,
 			phone_number TEXT,
+			password_hash TEXT NOT NULL DEFAULT '',
+			active INTEGER NOT NULL DEFAULT 1,
+			webauthn_credentials TEXT NOT NULL DEFAULT '',
 			created_at TEXT NOT NULL
 		);`,
 		`CREATE TABLE IF NOT EXISTS groups (
@@ -158,6 +161,7 @@ func (s *Store) migrate() error {
 	addCols := []string{
 		`ALTER TABLE users ADD COLUMN password_hash TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE users ADD COLUMN active INTEGER NOT NULL DEFAULT 1`,
+		`ALTER TABLE users ADD COLUMN webauthn_credentials TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE opa_policies ADD COLUMN signature TEXT NOT NULL DEFAULT ''`,
 	}
 	for _, stmt := range addCols {

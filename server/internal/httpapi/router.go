@@ -146,6 +146,8 @@ func NewRouter(dep Dependencies) http.Handler {
 	r.Use(requestIDMiddleware)
 	r.Use(instrumentMiddleware)
 
+	bc := dep.Broadcaster // shorthand; nil-safe throughout
+
 	// Admin login / logout — public (no API key required).
 	r.HandleFunc("/admin/login", adminLoginPageHandler()).Methods(http.MethodGet)
 	r.HandleFunc("/admin/login", adminLoginSubmitHandler(dep.Admins, dep.AdminCookieKey)).Methods(http.MethodPost)
@@ -165,7 +167,11 @@ func NewRouter(dep Dependencies) http.Handler {
 	}).Methods(http.MethodGet)
 	r.HandleFunc("/login/select-user", func(w http.ResponseWriter, r *http.Request) {
 		users, _, flows, _, _ := dep.resolveStores(r.Context())
-		loginSelectUserHandler(flows, users)(w, r)
+		rw := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		loginSelectUserHandler(flows, users)(rw, r)
+		if bc != nil && rw.status == http.StatusFound {
+			bc.Send("flows")
+		}
 	}).Methods(http.MethodPost)
 	r.HandleFunc("/login/mfa", func(w http.ResponseWriter, r *http.Request) {
 		users, _, flows, _, _ := dep.resolveStores(r.Context())
@@ -173,7 +179,11 @@ func NewRouter(dep Dependencies) http.Handler {
 	}).Methods(http.MethodGet)
 	r.HandleFunc("/login/mfa", func(w http.ResponseWriter, r *http.Request) {
 		users, _, flows, _, _ := dep.resolveStores(r.Context())
-		loginMFASubmitHandler(flows, users, dep.AuthEventSink, dep.TrustedProxyCIDRs)(w, r)
+		rw := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		loginMFASubmitHandler(flows, users, dep.AuthEventSink, dep.TrustedProxyCIDRs)(rw, r)
+		if bc != nil && rw.status == http.StatusFound {
+			bc.Send("flows")
+		}
 	}).Methods(http.MethodPost)
 	r.HandleFunc("/login/complete", func(w http.ResponseWriter, r *http.Request) {
 		users, _, flows, _, _ := dep.resolveStores(r.Context())
@@ -181,7 +191,11 @@ func NewRouter(dep Dependencies) http.Handler {
 	}).Methods(http.MethodGet)
 	r.HandleFunc("/login/magic", func(w http.ResponseWriter, r *http.Request) {
 		users, _, flows, _, _ := dep.resolveStores(r.Context())
-		loginMagicHandler(flows, users)(w, r)
+		rw := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		loginMagicHandler(flows, users)(rw, r)
+		if bc != nil && rw.status == http.StatusFound {
+			bc.Send("flows")
+		}
 	}).Methods(http.MethodGet)
 	// Public — the flow ID is the secret; used by the push/magic-link MFA poll.
 	r.HandleFunc("/login/flow/{id}/state", func(w http.ResponseWriter, r *http.Request) {
@@ -215,7 +229,11 @@ func NewRouter(dep Dependencies) http.Handler {
 	}).Methods(http.MethodGet)
 	r.HandleFunc("/api/v1/flows/{id}/webauthn-response", func(w http.ResponseWriter, r *http.Request) {
 		users, _, flows, _, as := dep.resolveStores(r.Context())
-		webauthnResponseHandler(flows, users, as, wa, dep.AuthEventSink, dep.TrustedProxyCIDRs)(w, r)
+		rw := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		webauthnResponseHandler(flows, users, as, wa, dep.AuthEventSink, dep.TrustedProxyCIDRs)(rw, r)
+		if bc != nil && rw.status < 300 {
+			bc.Send("flows")
+		}
 	}).Methods(http.MethodPost)
 
 	api := r.PathPrefix("/api/v1").Subrouter()
@@ -236,8 +254,6 @@ func NewRouter(dep Dependencies) http.Handler {
 	if dep.Broadcaster != nil {
 		api.HandleFunc("/events", sseHandler(dep.Broadcaster)).Methods(http.MethodGet)
 	}
-
-	bc := dep.Broadcaster // shorthand; nil-safe — callers check before Send
 
 	api.HandleFunc("/users", func(w http.ResponseWriter, r *http.Request) {
 		users, _, _, _, _ := dep.resolveStores(r.Context())

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"os"
 	"net/http"
 	"time"
 
@@ -49,6 +50,7 @@ type App struct {
 
 	httpServer     *http.Server
 	protocolServer *http.Server
+	broadcaster    *httpapi.SSEBroadcaster
 	closers        []func() error
 	cleanupDone    chan struct{}
 }
@@ -127,6 +129,19 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 	}
 
 	httpBaseURL := "http://localhost" + cfg.HTTPAddr
+
+	// Default WebAuthn relying-party config from the listen address so that
+	// local and Docker-on-same-machine setups work without any extra config.
+	// Override with FURNACE_WEBAUTHN_RP_ID / FURNACE_WEBAUTHN_ORIGIN when
+	// deploying to a custom domain.
+	waRPID := cfg.WebAuthn.RPID
+	if waRPID == "" {
+		waRPID = "localhost"
+	}
+	waOrigin := cfg.WebAuthn.Origin
+	if waOrigin == "" {
+		waOrigin = httpBaseURL
+	}
 	km, err := oidcengine.NewKeyManagerWithOverlap(cfg.OIDC.KeyRotationOverlap)
 	if err != nil {
 		return nil, fmt.Errorf("initialize oidc key manager: %w", err)
@@ -191,6 +206,7 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 		return nil, fmt.Errorf("initialize opa engine: %w", err)
 	}
 
+	broadcaster := httpapi.NewSSEBroadcaster()
 	router := httpapi.NewRouter(httpapi.Dependencies{
 		Users:             users,
 		Groups:            groups,
@@ -207,8 +223,8 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 		RateLimit:         cfg.RateLimit,
 		TrustedProxyCIDRs: trustedProxyCIDRs,
 		AuthEventSink:     authSink,
-		WebAuthnRPID:      cfg.WebAuthn.RPID,
-		WebAuthnOrigin:    cfg.WebAuthn.Origin,
+		WebAuthnRPID:      waRPID,
+		WebAuthnOrigin:    waOrigin,
 		SCIMRouter:        scimRouter,
 		TokenMinter:       &issuerMinter{issuer: issuer},
 		ConfigPatcher:     cp,
@@ -221,7 +237,7 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 		OPAEngine:         opaEngine,
 		OPAPolicies:       policies,
 		APIKeyStore:       apiKeys,
-		Broadcaster:       httpapi.NewSSEBroadcaster(),
+		Broadcaster:       broadcaster,
 	})
 
 	httpServer := &http.Server{
@@ -300,6 +316,7 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 		rotationInterval: cfg.OIDC.KeyRotationInterval,
 		httpServer:       httpServer,
 		protocolServer:   protocolServer,
+		broadcaster:      broadcaster,
 		closers:          closers,
 		cleanupDone:      make(chan struct{}),
 	}, nil
@@ -350,7 +367,29 @@ func (a *App) Start(ctx context.Context) error {
 
 	select {
 	case <-ctx.Done():
+		spinStop := make(chan struct{})
+		spinDone := make(chan struct{})
+		go func() {
+			defer close(spinDone)
+			frames := `|/-\`
+			i := 0
+			ticker := time.NewTicker(100 * time.Millisecond)
+			defer ticker.Stop()
+			fmt.Fprintf(os.Stderr, "\n  %c Shutting down...", frames[0])
+			for {
+				select {
+				case <-spinStop:
+					fmt.Fprint(os.Stderr, "\r  Stopped.              \n")
+					return
+				case <-ticker.C:
+					i++
+					fmt.Fprintf(os.Stderr, "\r  %c Shutting down...", frames[i%4])
+				}
+			}
+		}()
+
 		a.logger.Info("shutdown signal received")
+		a.broadcaster.Shutdown()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
@@ -366,6 +405,8 @@ func (a *App) Start(ctx context.Context) error {
 				a.logger.Warn("resource close failed", "error", err)
 			}
 		}
+		close(spinStop)
+		<-spinDone
 		return nil
 	case err := <-errCh:
 		return err
